@@ -1,0 +1,12 @@
+# build output
+bin/
+obj/
+*.exe
+*.pdb
+
+# per-machine settings
+widgets.ini
+.claude/settings.local.json
+
+# generated
+graphify-out/

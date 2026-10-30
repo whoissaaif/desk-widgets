@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "interrogate": {
+      "source": "EvanBatten/pstack-for-cc",
+      "sourceType": "github",
+      "skillPath": "skills/interrogate/SKILL.md",
+      "computedHash": "ff4cb4d08279f63786d779e7c041eb798cc77d056bd15bdd6f9947506d8689a6"
+    }
+  }
+}
