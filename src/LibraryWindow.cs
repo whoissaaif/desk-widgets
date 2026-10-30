@@ -43,6 +43,7 @@ namespace DeskWidgets
             MinimumSize = new Size(Px(560), Px(400));
 
             content = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Bg };
+            content.HandleCreated += delegate { Native.UseDarkControlTheme(content.Handle); }; // dark scrollbar
             hint = new Label { Text = "Drag a widget onto your desktop, or double-click to add it.", ForeColor = Muted, AutoSize = true };
             content.Controls.Add(hint);
             foreach (var cat in WidgetRegistry.Categories)
@@ -132,11 +133,15 @@ namespace DeskWidgets
 
                 sec.Banner.SetBounds(pad, y + scroll, width, Px(68));
                 y += Px(68) + gap;
-                int cw = sec.Cards[0].Width, ch = sec.Cards[0].Height;
-                int cols = Math.Max(1, (width + gap) / (cw + gap));
-                for (int i = 0; i < sec.Cards.Count; i++)
-                    sec.Cards[i].Location = new Point(pad + (i % cols) * (cw + gap), y + scroll + (i / cols) * (ch + gap));
-                y += (sec.Cards.Count + cols - 1) / cols * (ch + gap) + Px(20);
+                // Cards flow left to right and wrap; medium widgets have double-width cards.
+                int x = pad, ch = sec.Cards[0].Height;
+                foreach (var card in sec.Cards)
+                {
+                    if (x > pad && x + card.Width > pad + width) { x = pad; y += ch + gap; }
+                    card.Location = new Point(x, y + scroll);
+                    x += card.Width + gap;
+                }
+                y += ch + gap + Px(20);
             }
             content.AutoScrollMinSize = new Size(0, y);
             content.ResumeLayout();
@@ -284,7 +289,9 @@ namespace DeskWidgets
         {
             this.type = type;
             preview = type.Snapshot();
-            Size = new Size(WidgetWindow.Px(176), WidgetWindow.Px(240));
+            // Wide widgets (medium, 364 x 170) get a card two columns wide, with the same gap as the grid.
+            bool wide = preview.Width > preview.Height * 1.5f;
+            Size = new Size(WidgetWindow.Px(wide ? 176 * 2 + 14 : 176), WidgetWindow.Px(240));
             Margin = new Padding(WidgetWindow.Px(8));
             Cursor = Cursors.Hand;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint |
@@ -304,8 +311,8 @@ namespace DeskWidgets
             using (var b = new SolidBrush(hover ? Color.FromArgb(58, 58, 60) : Color.FromArgb(44, 44, 46)))
                 g.FillPath(b, path);
 
-            int box = Width - pad * 2;
-            float scale = Math.Min(1f, box / (float)Math.Max(preview.Width, preview.Height));
+            int boxW = Width - pad * 2, box = WidgetWindow.Px(176) - pad * 2;
+            float scale = Math.Min(1f, Math.Min(boxW / (float)preview.Width, box / (float)preview.Height));
             int pw = (int)(preview.Width * scale), ph = (int)(preview.Height * scale);
             g.DrawImage(preview, new Rectangle((Width - pw) / 2, pad + (box - ph) / 2, pw, ph));
 

@@ -48,6 +48,29 @@ namespace DeskWidgets
             if (Owner != null) Owner.Save();
         }
 
+        // Multi-line text: newlines and backslashes are escaped so each value stays on one INI line.
+        public string GetText(string key, string def)
+        {
+            string v = Get(key, null);
+            if (v == null) return def;
+            var sb = new StringBuilder(v.Length);
+            for (int i = 0; i < v.Length; i++)
+            {
+                if (v[i] == '\\' && i + 1 < v.Length)
+                {
+                    char n = v[++i];
+                    sb.Append(n == 'n' ? '\n' : n);
+                }
+                else sb.Append(v[i]);
+            }
+            return sb.ToString();
+        }
+
+        public void SetText(string key, string value)
+        {
+            Set(key, value.Replace("\r\n", "\n").Replace("\\", "\\\\").Replace("\n", "\\n"));
+        }
+
         public void Remove(string key)
         {
             if (Values.Remove(key) && Owner != null) Owner.Save();

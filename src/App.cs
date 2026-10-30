@@ -49,6 +49,8 @@ namespace DeskWidgets
         const string RunName = "DeskWidgets";
 
         public static App Current { get; private set; }
+        // Folder holding widgets.ini and caches (AppData, or next to the exe in portable mode).
+        public static string DataDir { get; private set; }
         public static readonly Icon AppIcon = LoadIcon(Size.Empty);
 
         public event Action WidgetsChanged;
@@ -67,7 +69,9 @@ namespace DeskWidgets
             PopupMenu.Owner = messageWindow.Handle;
             Native.FollowSystemThemeForMenus(messageWindow.Handle);
 
-            config = Config.Load(ConfigPath());
+            string configPath = ConfigPath();
+            DataDir = Path.GetDirectoryName(configPath);
+            config = Config.Load(configPath);
             OpenAll();
 
             tray = new NotifyIcon { Icon = LoadIcon(SystemInformation.SmallIconSize), Text = AppName, Visible = true };
@@ -77,7 +81,7 @@ namespace DeskWidgets
                 else if (e.Button == MouseButtons.Right) ShowAppMenu();
             };
 
-            if (StartWithWindows) StartWithWindows = true; // exe may have moved: refresh the path
+            // Never touch the autostart entry on launch: it only changes when the user toggles it.
             EnsureStartMenuShortcut();
             SystemEvents.SessionSwitch += OnSessionSwitch;
             SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
@@ -184,24 +188,28 @@ namespace DeskWidgets
             menu.Show(Cursor.Position);
         }
 
+        static string RunCommand { get { return "\"" + Application.ExecutablePath + "\" --background"; } }
+
+        // On only if the entry starts this exe (an entry left by a moved or other copy shows as off).
         public static bool StartWithWindows
         {
             get
             {
                 using (var k = Registry.CurrentUser.OpenSubKey(RunKey))
-                    return k != null && k.GetValue(RunName) != null;
+                    return k != null && string.Equals(k.GetValue(RunName) as string, RunCommand, StringComparison.OrdinalIgnoreCase);
             }
             set
             {
                 using (var k = Registry.CurrentUser.CreateSubKey(RunKey))
                 {
-                    if (value) k.SetValue(RunName, "\"" + Application.ExecutablePath + "\" --background");
+                    if (value) k.SetValue(RunName, RunCommand);
                     else k.DeleteValue(RunName, false);
                 }
             }
         }
 
-        // Start menu entry (so the app is searchable), created or re-pointed at this exe.
+        // Start menu entry (so the app is searchable). Created when missing, or when the exe it
+        // pointed to no longer exists (the folder was moved); never taken over by another copy.
         static void EnsureStartMenuShortcut()
         {
             string lnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), AppName + ".lnk");
@@ -214,8 +222,7 @@ namespace DeskWidgets
                 shell = Activator.CreateInstance(shellType);
                 shortcut = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { lnk });
                 Type t = shortcut.GetType();
-                if (File.Exists(lnk) && string.Equals((string)t.InvokeMember("TargetPath", BindingFlags.GetProperty, null, shortcut, null),
-                        exe, StringComparison.OrdinalIgnoreCase))
+                if (File.Exists(lnk) && File.Exists((string)t.InvokeMember("TargetPath", BindingFlags.GetProperty, null, shortcut, null)))
                     return;
                 t.InvokeMember("TargetPath", BindingFlags.SetProperty, null, shortcut, new object[] { exe });
                 t.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, shortcut, new object[] { Path.GetDirectoryName(exe) });

@@ -106,6 +106,16 @@ namespace DeskWidgets
             catch (EntryPointNotFoundException) { }
         }
 
+        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)] static extern int SetWindowTheme(IntPtr hwnd, string app, string idList);
+
+        // Dark scrollbars (and other common-control parts) for a control in our always-dark windows.
+        public static void UseDarkControlTheme(IntPtr hwnd)
+        {
+            try { AllowDarkModeForWindow(hwnd, true); }
+            catch (EntryPointNotFoundException) { }
+            SetWindowTheme(hwnd, "DarkMode_Explorer", null);
+        }
+
         public static void RefreshMenuTheme()
         {
             try { FlushMenuThemes(); }

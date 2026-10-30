@@ -1,7 +1,8 @@
 # Desk Widgets
 
 Lightweight desktop widgets for Windows. Native C# on the .NET Framework 4 that ships with every
-Windows 10/11 PC, so there is nothing to install. All widgets run in one process (~25 MB RAM, ~0.3% of one CPU core with a ticking clock).
+Windows 10/11 PC, so there is nothing to install. All widgets run in one process: about 33 MB of
+memory and about 0.3% of one CPU core with seven widgets on the desktop.
 
 ## Build & run (any Windows PC)
 
@@ -12,8 +13,29 @@ build.bat
 bin\DeskWidgets.exe
 ```
 
-The first run adds **Desk Widgets** to the Start menu (and re-points it if the exe moves), so after
-that you can just search for it.
+The first run adds **Desk Widgets** to the Start menu (it's recreated if missing, or if the exe it
+pointed to was moved), so after that you can just search for it.
+
+## Widgets
+
+| Category | Widget | Size | Notes |
+| --- | --- | --- | --- |
+| Clocks | Analog clock, dark clock, world clock | Small | City, size, seconds hand, face |
+| Productivity | Focus timer | Small | Start/pause/reset; keeps running across restarts |
+| Productivity | Reminders | Medium | Click a circle to tick off, click elsewhere to add |
+| Productivity | Notes | Small | Click to edit |
+| System | System | Small | CPU (1 min history), memory, disk; reads Windows directly every 2 s |
+| Photos | Photo frame | Medium | Pictures folder by default; changes hourly or on click |
+| Developer | GitHub | Medium | Profile, streak, 30 weeks of contributions; refreshes every 30 min |
+
+Card widgets follow Apple's widget specs (small 170 × 170 pt, medium 364 × 170 pt, 16 pt margins,
+22 pt corners) with dark and light appearances and three sizes. The design reference is
+`design/essential-widgets.html`.
+
+**GitHub sign-in:** click the widget and either paste a personal access token (stored encrypted
+with Windows DPAPI for your account only) or choose "Use my GitHub CLI login" if `gh` is installed.
+Nothing is read until you choose. The last result is cached in `%APPDATA%\DeskWidgets\cache`, so the
+widget shows instantly at startup and keeps working offline.
 
 ## Using it
 
@@ -21,16 +43,17 @@ that you can just search for it.
   Widgets are grouped by category (sidebar + a banner per category). **Drag** a widget out onto the
   desktop, or **double-click** it to drop it mid-screen. Closing the window frees its memory; widgets
   and the tray icon keep running.
-- **On the desktop**: drag a widget to move it. Right-click it for its options (city, size, seconds hand,
-  face, opacity, lock, remove). Menus are native Windows menus and follow the system light/dark theme.
+- **On the desktop**: drag a widget to move it; click its buttons to use it. Right-click it for its
+  options. Menus are native Windows menus and follow the system light/dark theme.
 - **Tray menu**: Open Desk Widgets, Start with Windows, Exit.
-- **Start with Windows** launches with `--background`: widgets come back, no window opens.
+- **Start with Windows** launches with `--background`: widgets come back, no window opens. The app
+  only changes this entry when you toggle it.
 
 ## Settings & portability
 
 - Settings live in `%APPDATA%\DeskWidgets\widgets.ini` (one `[section]` per widget).
-- **Portable mode**: if a `widgets.ini` exists next to `DeskWidgets.exe`, that file is used instead
-  (handy on a USB stick).
+- **Portable mode**: if a `widgets.ini` exists next to `DeskWidgets.exe`, that file (and a `cache`
+  folder beside it) is used instead (handy on a USB stick).
 - Positions are stored relative to the monitor (`fx`/`fy`, 0..1). A widget in a corner stays in that
   corner on any resolution, DPI, or machine, and re-snaps when the display changes.
 - Sizes are in logical pixels and scale with DPI.
@@ -38,16 +61,21 @@ that you can just search for it.
 ## Why it's light
 
 - Per-pixel-alpha layered window (`UpdateLayeredWindow`) drawing into one reusable DIB, with no per-frame allocations.
-- Static parts (background, dial, numbers) are rendered once and cached; each frame only draws the hands.
-- Timers wake exactly once per second (or per minute with the seconds hand hidden); drawing pauses while the PC is locked.
+- Widgets redraw only when something changes: the clock once a second, System every 2 s, the timer
+  only while running, the rest on demand. Drawing pauses while the PC is locked.
+- Slow work (GitHub requests, decoding photos) runs on background threads; photos are kept only as a
+  widget-sized bitmap.
 
 ## Adding a new widget
 
-1. Create `src/Widgets/MyWidget.cs` deriving from `WidgetWindow` and implement:
-   - `Measure()`: pixel size (use `Px()` for DPI scaling)
-   - `Draw(Graphics g)`: draw the full frame (the surface is not cleared for you)
+1. Create `src/Widgets/MyWidget.cs`. For an Apple-style card, derive from `CardWidget`
+   (`base(settings, medium)`) and implement `DrawContent(g, pal)`, laying out in points with `P()`.
+   For anything else derive from `WidgetWindow` and implement `Measure()` and `Draw()`.
+   Optional overrides:
    - `NextFrameDelay()`: ms until the next redraw, or `-1` for on-demand only
-   - `BuildMenu(PopupMenu menu)`: optional right-click options, stored with `Settings.Set(...)`
+   - `IsButton(p)` / `OnWidgetClick(p)`: clickable areas (a press that doesn't move is a click)
+   - `BuildWidgetMenu(menu)` (cards) or `BuildMenu(menu)`: right-click options, stored with `Settings.Set(...)`
+   - `OnStart()`: start timers or fetches (not called for library previews)
 2. Register it in `src/WidgetRegistry.cs` with a `Category` (add a new `WidgetCategory` with a
    Segoe Fluent Icons glyph if needed), name, description and optional preset `Defaults`.
    It shows up in the app under its category automatically.

@@ -37,7 +37,11 @@ namespace DeskWidgets
     {
         public static readonly WidgetCategory[] Categories =
         {
-            new WidgetCategory { Id = "clocks", Name = "Clocks", Description = "Analog and world clocks", Glyph = '' },
+            new WidgetCategory { Id = "clocks", Name = "Clocks", Description = "Analog and world clocks", Glyph = '\uE917' },
+            new WidgetCategory { Id = "productivity", Name = "Productivity", Description = "Focus, reminders and notes", Glyph = '\uE73A' },
+            new WidgetCategory { Id = "system", Name = "System", Description = "What your PC is doing", Glyph = '\uE7F4' },
+            new WidgetCategory { Id = "media", Name = "Photos", Description = "Your pictures on the desktop", Glyph = '\uEB9F' },
+            new WidgetCategory { Id = "developer", Name = "Developer", Description = "Your GitHub at a glance", Glyph = '\uE943' },
         };
 
         public static readonly WidgetType[] Types =
@@ -57,6 +61,36 @@ namespace DeskWidgets
                 Id = "world-clock", Category = "clocks", Name = "World clock", Description = "Any city, starts on Paris",
                 Create = s => new AnalogClock(s),
                 Defaults = s => { s.Set("label", "PAR"); s.Set("tz", "Romance Standard Time"); }
+            },
+            new WidgetType
+            {
+                Id = "focus-timer", Category = "productivity", Name = "Focus timer", Description = "A ring that counts down",
+                Create = s => new FocusTimer(s)
+            },
+            new WidgetType
+            {
+                Id = "reminders", Category = "productivity", Name = "Reminders", Description = "Tick things off from the desktop",
+                Create = s => new RemindersWidget(s)
+            },
+            new WidgetType
+            {
+                Id = "notes", Category = "productivity", Name = "Notes", Description = "One note, click to edit",
+                Create = s => new NotesWidget(s)
+            },
+            new WidgetType
+            {
+                Id = "system", Category = "system", Name = "System", Description = "CPU, memory and disk",
+                Create = s => new SystemWidget(s)
+            },
+            new WidgetType
+            {
+                Id = "photo-frame", Category = "media", Name = "Photo frame", Description = "A picture from your folder, changes hourly",
+                Create = s => new PhotoFrame(s)
+            },
+            new WidgetType
+            {
+                Id = "github", Category = "developer", Name = "GitHub", Description = "Profile, streak and contribution graph",
+                Create = s => new GitHubWidget(s)
             },
         };
 

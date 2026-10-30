@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ten Essential Desk Widgets</title>
+<style>
+/* Layout idea: a desktop "scene" (wallpaper + widgets on Apple's 170 pt grid) first, the spec sheet after.
+   One visual world: a dark page like the Desk Widgets app window, so the widgets are the only bright things. */
+:root {
+  --page: #141417;
+  --panel: #1c1c20;
+  --ink: #f2f2f5;
+  --muted: #a2a2ab;
+  --line: #2d2d33;
+  --accent: #ff9f0a;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+
+  /* Apple's widget grid: small = 1 unit, medium = 2 units + 1 gap (170 / 364 pt). */
+  --u: 170px;
+  --g: calc(var(--u) * 24 / 170);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--page);
+  color: var(--ink);
+  font: 15px/1.5 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 72px; display: flex; flex-direction: column; gap: 40px; }
+
+header { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: end; justify-content: space-between; }
+header .intro { max-width: 62ch; display: flex; flex-direction: column; gap: 8px; }
+h1 { font: 700 34px/1.15 var(--font-display); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+h2 { font: 650 22px/1.25 var(--font-display); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.seg button {
+  font: 500 13px/1 var(--font-body); color: var(--muted); background: none; border: 0;
+  padding: 9px 14px; border-radius: 7px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: #3a3a40; color: var(--ink); }
+.seg button:hover { color: var(--ink); }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- the desktop scene ---------- */
+.desk {
+  position: relative; border-radius: 20px; overflow: hidden;
+  padding: 40px; display: flex; justify-content: center;
+  background: #1f3b4d;
+  isolation: isolate;
+}
+.desk > svg.wall { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; }
+.grid {
+  display: grid; gap: var(--g);
+  grid-template-columns: repeat(4, var(--u));
+  grid-auto-rows: var(--u);
+}
+.scene-note { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--muted); }
+.scene-note b { color: var(--ink); font-weight: 600; }
+
+/* ---------- widget appearances (light / dark / vibrant) ---------- */
+.desk[data-mode="light"] {
+  --w-bg: #ffffff; --w-fg: #000000; --w-fg2: #6e6e73; --w-fill: #f2f2f7; --w-sep: #e5e5ea; --w-face: #f5f5f7;
+  --red: #ff3b30; --orange: #ff9500; --yellow: #f5b800; --green: #34c759; --blue: #007aff; --purple: #af52de;
+  --w-shadow: 0 10px 30px rgba(0,0,0,.28);
+}
+.desk[data-mode="dark"] {
+  --w-bg: #1c1c1e; --w-fg: #ffffff; --w-fg2: #98989f; --w-fill: #2c2c2e; --w-sep: #38383a; --w-face: #000000;
+  --red: #ff453a; --orange: #ff9f0a; --yellow: #ffd60a; --green: #30d158; --blue: #0a84ff; --purple: #bf5af2;
+  --w-shadow: 0 10px 30px rgba(0,0,0,.4);
+}
+/* macOS renders desktop widgets "vibrant" when other windows have focus: desaturated, translucent. */
+.desk[data-mode="vibrant"] {
+  --w-bg: rgba(255,255,255,.16); --w-fg: #ffffff; --w-fg2: rgba(255,255,255,.66); --w-fill: rgba(255,255,255,.14);
+  --w-sep: rgba(255,255,255,.2); --w-face: rgba(255,255,255,.1);
+  --red: #fff; --orange: #fff; --yellow: #fff; --green: #fff; --blue: #fff; --purple: #fff;
+  --w-shadow: none;
+}
+
+.w {
+  /* 1em = Apple's 16 pt widget margin at full size */
+  font-size: calc(var(--u) * 16 / 170);
+  width: 100%; height: 100%;
+  border-radius: calc(var(--u) * 22 / 170);
+  background: var(--w-bg); color: var(--w-fg);
+  box-shadow: var(--w-shadow);
+  padding: 1em; overflow: hidden; position: relative;
+  font-family: var(--font-body);
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.desk[data-mode="vibrant"] .w { -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); }
+.desk[data-mode="vibrant"] .art { filter: grayscale(1) contrast(1.1); }
+.m { grid-column: span 2; }
+.cap { font-size: .6875em; } /* 11 pt: the smallest text Apple allows in a widget */
+.sub { font-size: .8125em; }  /* 13 pt */
+.body { font-size: .9375em; } /* 15 pt */
+.fg2 { color: var(--w-fg2); }
+.bold { font-weight: 600; }
+.ic { width: 1em; height: 1em; fill: currentColor; flex: none; }
+.row { display: flex; align-items: center; gap: .5em; }
+.wbtn {
+  font: inherit; color: var(--w-fg); background: var(--w-fill); border: 0; cursor: pointer;
+  width: 1.75em; height: 1.75em; border-radius: 50%; display: grid; place-items: center; padding: 0;
+}
+.wbtn .ic { width: .875em; height: .875em; }
+.wbtn:hover { filter: brightness(1.15); }
+
+/* Calendar */
+.cal { display: grid; grid-template-columns: 1fr 1.55fr; gap: .875em; }
+.cal .left { display: flex; flex-direction: column; min-width: 0; }
+.cal .dow { color: var(--red); font-weight: 600; text-transform: uppercase; letter-spacing: .02em; }
+.cal .date { font: 300 2.375em/1 var(--font-display); letter-spacing: -0.02em; margin: .05em 0 .3em; }
+.ev { display: flex; gap: .4em; margin-top: .45em; min-width: 0; }
+.ev i { width: .1875em; border-radius: 2px; background: var(--c); flex: none; }
+.ev div { min-width: 0; }
+.ev .t { font-size: .8125em; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev .d { font-size: .6875em; color: var(--w-fg2); white-space: nowrap; }
+.month .mname { color: var(--red); font-weight: 600; text-transform: uppercase; letter-spacing: .02em; margin-bottom: .25em; }
+.days { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; row-gap: .1em; }
+.days span { font-size: .6875em; line-height: 1.6; font-weight: 500; }
+.days .h { color: var(--w-fg2); font-weight: 600; }
+.days .o { color: var(--w-fg2); opacity: .5; }
+.days .today { background: var(--red); color: #fff; border-radius: 50%; font-weight: 700; justify-self: center; width: 1.6em; }
+.desk[data-mode="vibrant"] .days .today { color: #000; }
+
+/* Weather */
+.wx { display: flex; flex-direction: column; justify-content: space-between; color: #fff; }
+.desk[data-mode="light"] .wx { background: linear-gradient(180deg, #3d8ce0, #2a6cc4); }
+.desk[data-mode="dark"] .wx { background: linear-gradient(180deg, #1f4f8c, #12325f); }
+.wx .top { display: flex; justify-content: space-between; align-items: flex-start; }
+.wx .temp { font: 300 2.625em/1 var(--font-display); letter-spacing: -0.03em; }
+.wx .cond { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: .15em; }
+.wx .hours { display: grid; grid-template-columns: repeat(6, 1fr); text-align: center; }
+.wx .hours div { display: flex; flex-direction: column; align-items: center; gap: .2em; }
+.wx .ic { width: 1.25em; height: 1.25em; }
+.sun { fill: #ffd60a; } .cloud { fill: #fff; } .rain { stroke: #7cc4ff; }
+.desk[data-mode="vibrant"] .sun { fill: #fff; }
+.desk[data-mode="vibrant"] .rain { stroke: #fff; }
+.wx .fg2w { color: rgba(255,255,255,.75); }
+
+/* Clocks */
+.clock { padding: .5em; display: grid; place-items: center; }
+.clock svg { width: 100%; height: 100%; }
+.dial-face { fill: var(--w-face); }
+.dial-num { fill: var(--w-fg); font: 600 11px var(--font-display); }
+.dial-tick { stroke: var(--w-fg2); }
+.hand { stroke: var(--w-fg); stroke-linecap: round; }
+.hand.s { stroke: var(--orange); }
+.hub { fill: var(--w-fg); } .hub.s { fill: var(--orange); }
+
+/* System */
+.sys { display: flex; flex-direction: column; gap: .3em; }
+.sys .big { font: 600 1.75em/1 var(--font-display); letter-spacing: -0.02em; }
+.sys #cpu-spark { width: 100%; height: 2.1em; display: block; }
+.spark-area { fill: var(--blue); opacity: .22; } .spark-line { stroke: var(--blue); fill: none; stroke-width: 1.5; }
+.spark-dot { fill: var(--blue); }
+.spark-grid { stroke: var(--w-sep); stroke-width: 1; }
+.bar { height: .3125em; border-radius: 99px; background: var(--w-fill); overflow: hidden; }
+.bar b { display: block; height: 100%; border-radius: inherit; background: var(--c, var(--blue)); }
+.meter { display: flex; flex-direction: column; gap: .2em; }
+.meter .row { justify-content: space-between; }
+
+/* Now playing */
+.np { display: flex; gap: .875em; }
+.art {
+  flex: none; height: 100%; aspect-ratio: 1; border-radius: .625em; position: relative; overflow: hidden;
+  background:
+    radial-gradient(circle at 70% 30%, #ffd27a 0 18%, transparent 19%),
+    radial-gradient(ellipse at 50% 120%, #0d3b4f 0 45%, transparent 46%),
+    linear-gradient(180deg, #f08a5d 0%, #b83b5e 55%, #3d1e52 100%);
+}
+.art::after { content: ""; position: absolute; left: 0; right: 0; bottom: 22%; height: 2px; background: rgba(255,255,255,.35); box-shadow: 0 6px 0 rgba(255,255,255,.2), 0 12px 0 rgba(255,255,255,.12); }
+.np .info { display: flex; flex-direction: column; justify-content: space-between; min-width: 0; flex: 1; }
+.np .title { font-size: .9375em; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np .controls { display: flex; gap: .75em; align-items: center; }
+.np .controls .play { width: 2.25em; height: 2.25em; background: var(--w-fg); color: var(--w-bg); }
+.desk[data-mode="vibrant"] .np .controls .play { color: #3a5560; }
+
+/* Photo frame */
+.photo { padding: 0; }
+.photo canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.photo .shade { position: absolute; inset: auto 0 0 0; height: 55%; background: linear-gradient(180deg, transparent, rgba(0,0,0,.55)); }
+.photo .meta { position: absolute; left: 1em; right: 1em; bottom: .875em; display: flex; justify-content: space-between; align-items: flex-end; gap: .5em; color: #fff; }
+.photo .meta .fg2w { color: rgba(255,255,255,.78); }
+.photo .next { background: rgba(255,255,255,.22); color: #fff; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.desk[data-mode="vibrant"] .photo canvas { filter: grayscale(1) contrast(1.05); }
+
+/* GitHub */
+.desk[data-mode="light"] { --gh0: #ebedf0; --gh1: #9be9a8; --gh2: #40c463; --gh3: #30a14e; --gh4: #216e39; }
+.desk[data-mode="dark"] { --gh0: #2c2c2e; --gh1: #0e4429; --gh2: #006d32; --gh3: #26a641; --gh4: #39d353; }
+.desk[data-mode="vibrant"] { --gh0: rgba(255,255,255,.12); --gh1: rgba(255,255,255,.32); --gh2: rgba(255,255,255,.52); --gh3: rgba(255,255,255,.74); --gh4: rgba(255,255,255,.95); }
+.gh { display: flex; flex-direction: column; gap: .45em; }
+.gh-top { display: flex; align-items: center; gap: .55em; }
+.gh .avatar { width: 2.125em; height: 2.125em; border-radius: 50%; flex: none; background: var(--w-fill); box-shadow: 0 0 0 1px var(--w-sep); }
+.desk[data-mode="vibrant"] .gh .avatar { filter: grayscale(1); }
+.gh .who { min-width: 0; flex: 1; }
+.gh .who > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gh .streak { text-align: right; flex: none; }
+.gh .streak .row { justify-content: flex-end; gap: .2em; color: var(--orange); }
+.gh .streak .n { font: 600 1.375em/1 var(--font-display); color: var(--w-fg); }
+.gh .streak .ic { width: 1em; height: 1em; }
+.gh-graph { display: grid; grid-template-rows: repeat(7, auto); grid-auto-flow: column; grid-auto-columns: 1fr; gap: .14em; }
+.gh-graph i { aspect-ratio: 1; border-radius: 2px; background: var(--gh0); }
+.gh-graph i.l1 { background: var(--gh1); } .gh-graph i.l2 { background: var(--gh2); }
+.gh-graph i.l3 { background: var(--gh3); } .gh-graph i.l4 { background: var(--gh4); }
+.gh-graph i.today { outline: 1.5px solid var(--w-fg); outline-offset: 0; }
+.gh-foot { justify-content: space-between; margin-top: auto; }
+
+/* Focus timer */
+.timer { display: flex; flex-direction: column; justify-content: space-between; }
+.timer .ttl { color: var(--orange); font-weight: 600; }
+.timer .mid { display: flex; align-items: center; justify-content: space-between; gap: .5em; }
+.tring { width: 5.75em; height: 5.75em; position: relative; }
+.tring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.tring .track { stroke: var(--w-fill); fill: none; }
+.tring .val { stroke: var(--orange); fill: none; stroke-linecap: round; }
+.tring .time { position: absolute; inset: 0; display: grid; place-items: center; font: 600 1.25em/1 var(--font-display); letter-spacing: -0.01em; }
+.timer .btns { display: flex; flex-direction: column; gap: .5em; }
+.timer .btns .main { background: var(--orange); color: #fff; }
+.desk[data-mode="vibrant"] .timer .btns .main { color: #3a5560; }
+
+/* Reminders */
+.rem { display: grid; grid-template-columns: 6.25em 1fr; gap: .75em; }
+.rem .head { display: flex; flex-direction: column; justify-content: space-between; }
+.rem .badge { width: 1.75em; height: 1.75em; border-radius: 50%; background: var(--blue); display: grid; place-items: center; color: #fff; }
+.desk[data-mode="vibrant"] .rem .badge { color: #3a5560; }
+.rem .count { font: 600 2.125em/1 var(--font-display); }
+.rem ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.rem li { border-bottom: 1px solid var(--w-sep); }
+.rem li:last-child { border-bottom: 0; }
+.rem li button {
+  font: inherit; color: inherit; background: none; border: 0; cursor: pointer; width: 100%;
+  display: flex; align-items: center; gap: .5em; padding: .42em 0; text-align: left;
+}
+.rem .box { width: 1.125em; height: 1.125em; border-radius: 50%; border: 1.5px solid var(--w-fg2); flex: none; display: grid; place-items: center; }
+.rem li[data-done="true"] .box { background: var(--blue); border-color: var(--blue); }
+.rem li[data-done="true"] .box::after { content: ""; width: .35em; height: .35em; border-radius: 50%; background: var(--w-bg); }
+.rem li[data-done="true"] .txt { color: var(--w-fg2); text-decoration: line-through; }
+.rem .txt { font-size: .8125em; }
+
+/* Notes */
+.notes { display: flex; flex-direction: column; gap: .4em; }
+.notes .hdr { color: var(--yellow); font-weight: 600; }
+.notes .ttl { font-size: .9375em; font-weight: 700; }
+.notes .txt { font-size: .8125em; color: var(--w-fg2); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.notes .foot { margin-top: auto; }
+
+/* ---------- below the scene ---------- */
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 32px; align-items: start; }
+.principles { display: flex; flex-direction: column; gap: 14px; }
+.principles ol { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 10px; }
+.principles li { padding-left: .2em; }
+.principles li span { color: var(--muted); }
+.legend { display: flex; flex-direction: column; gap: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; white-space: nowrap; }
+.chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip.built { color: #4cd47a; background: rgba(48,209,88,.12); }
+.chip.ready { color: #5aa9ff; background: rgba(10,132,255,.14); }
+.chip.data { color: #ffb340; background: rgba(255,159,10,.14); }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 860px; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; background: #19191c; }
+tr:last-child td { border-bottom: 0; }
+td.n { font-weight: 600; white-space: nowrap; }
+td .size { display: block; color: var(--muted); font-weight: 400; font-size: 12px; }
+
+@media (max-width: 900px) {
+  .grid { grid-template-columns: repeat(2, var(--u)); }
+  .two { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  :root { --u: calc((100vw - 32px - 32px) / (2 + 24 / 170)); }
+  .wrap { padding: 28px 16px 56px; }
+  .desk { padding: 16px; border-radius: 16px; }
+  h1 { font-size: 28px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bar b, .tring .val, .ring .val { transition: width .6s ease, stroke-dashoffset .6s ease; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-sun" viewBox="0 0 24 24"><g class="sun"><circle cx="12" cy="12" r="4.5"/><g stroke="currentColor" stroke-width="0" ><rect x="11" y="1.5" width="2" height="4" rx="1"/><rect x="11" y="18.5" width="2" height="4" rx="1"/><rect x="1.5" y="11" width="4" height="2" rx="1"/><rect x="18.5" y="11" width="4" height="2" rx="1"/><rect x="11" y="1.5" width="2" height="4" rx="1" transform="rotate(45 12 12)"/><rect x="11" y="18.5" width="2" height="4" rx="1" transform="rotate(45 12 12)"/><rect x="1.5" y="11" width="4" height="2" rx="1" transform="rotate(45 12 12)"/><rect x="18.5" y="11" width="4" height="2" rx="1" transform="rotate(45 12 12)"/></g></g></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path class="cloud" d="M7 19h10.5a4.5 4.5 0 0 0 .6-8.96A6.5 6.5 0 0 0 5.6 11.3 3.9 3.9 0 0 0 7 19z"/></symbol>
+    <symbol id="i-cloudsun" viewBox="0 0 24 24"><g class="sun"><circle cx="8.5" cy="8.5" r="3.6"/><rect x="7.6" y="1" width="1.8" height="3" rx=".9"/><rect x="1" y="7.6" width="3" height="1.8" rx=".9"/><rect x="7.6" y="1" width="1.8" height="3" rx=".9" transform="rotate(-45 8.5 8.5)"/><rect x="7.6" y="1" width="1.8" height="3" rx=".9" transform="rotate(45 8.5 8.5)"/></g><path class="cloud" d="M9 21h9a4 4 0 0 0 .5-7.97A5.5 5.5 0 0 0 8 13.4 3.8 3.8 0 0 0 9 21z"/></symbol>
+    <symbol id="i-rain" viewBox="0 0 24 24"><path class="cloud" d="M7 15h10.5a4.5 4.5 0 0 0 .6-8.96A6.5 6.5 0 0 0 5.6 7.3 3.9 3.9 0 0 0 7 15z"/><g class="rain" stroke-width="1.8" stroke-linecap="round"><line x1="8" y1="18" x2="7" y2="21"/><line x1="12.5" y1="18" x2="11.5" y2="21"/><line x1="17" y1="18" x2="16" y2="21"/></g></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path class="cloud" d="M19.5 15.2A8 8 0 1 1 8.8 4.5a6.6 6.6 0 0 0 10.7 10.7z"/></symbol>
+    <symbol id="i-loc" viewBox="0 0 24 24"><path d="M21 3 3 10.5l7.6 2.9L13.5 21z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.6-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M11.5 7.2v9.6a.8.8 0 0 1-1.25.66L3.5 12.66a.8.8 0 0 1 0-1.32l6.75-4.8a.8.8 0 0 1 1.25.66zm9 0v9.6a.8.8 0 0 1-1.25.66l-6.75-4.8a.8.8 0 0 1 0-1.32l6.75-4.8a.8.8 0 0 1 1.25.66z"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M12.5 7.2v9.6a.8.8 0 0 0 1.25.66l6.75-4.8a.8.8 0 0 0 0-1.32l-6.75-4.8a.8.8 0 0 0-1.25.66zm-9 0v9.6a.8.8 0 0 0 1.25.66l6.75-4.8a.8.8 0 0 0 0-1.32L4.75 6.54A.8.8 0 0 0 3.5 7.2z"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 1-7.75 10h2.1A6 6 0 1 0 8 7.5L10.5 10H4V3.5l2.55 2.55A8 8 0 0 1 12 4z"/></symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12.6 2.2c.4 2.9-.9 4.6-2.3 6.2-1.3 1.5-2.8 3-2.8 5.6a4.5 4.5 0 0 0 9 .3c0-1.4-.5-2.6-1.2-3.6.9 2.4-.5 3.9-1.6 3.9a1.6 1.6 0 0 1-1.6-1.7c0-1.6 1.6-2.6 1.6-5.2 0 0 4.8 2.2 4.8 7.1A7.5 7.5 0 0 1 3 15c0-4.4 3-6.7 5-9 1.3-1.5 2.4-2.6 2.4-4.6 0 0 1.4.2 2.2.8z"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><path d="M9 2h1.5v3h3V2H15v3h1a3 3 0 0 1 3 3v1h3v1.5h-3v3h3V15h-3v1a3 3 0 0 1-3 3h-1v3h-1.5v-3h-3v3H9v-3H8a3 3 0 0 1-3-3v-1H2v-1.5h3v-3H2V9h3V8a3 3 0 0 1 3-3h1zm0 5.5A1.5 1.5 0 0 0 7.5 9v6A1.5 1.5 0 0 0 9 16.5h6a1.5 1.5 0 0 0 1.5-1.5V9A1.5 1.5 0 0 0 15 7.5z"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><circle cx="5" cy="7" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="5" cy="17" r="1.6"/><rect x="9" y="6" width="11" height="2" rx="1"/><rect x="9" y="11" width="11" height="2" rx="1"/><rect x="9" y="16" width="11" height="2" rx="1"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M6 3h12a2 2 0 0 1 2 2v9.5L14.5 20H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm1.5 4v1.6h9V7zm0 3.6v1.6h9v-1.6zm0 3.6v1.6H12v-1.6z"/></symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header>
+    <div class="intro">
+      <h1>Ten essential desk widgets</h1>
+      <p class="muted">Designed after macOS and iOS widgets, using Apple's sizes (small 170 × 170 pt, medium 364 × 170 pt), 16 pt margins, 11 pt minimum text and system type. Use the switch to see them as light, dark and vibrant widgets. The vibrant look is how macOS shows desktop widgets while you work in another window.</p>
+    </div>
+    <div class="seg" role="group" aria-label="Widget appearance">
+      <button type="button" data-mode="light" aria-pressed="false">Light</button>
+      <button type="button" data-mode="dark" aria-pressed="true">Dark</button>
+      <button type="button" data-mode="vibrant" aria-pressed="false">Vibrant</button>
+    </div>
+  </header>
+
+  <section class="desk" id="desk" data-mode="dark" aria-label="Widgets on a desktop">
+    <svg class="wall" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1b3446"/>
+          <stop offset=".55" stop-color="#4d6c78"/>
+          <stop offset=".8" stop-color="#c99863"/>
+          <stop offset="1" stop-color="#e7b77a"/>
+        </linearGradient>
+      </defs>
+      <rect width="1000" height="700" fill="url(#sky)"/>
+      <circle cx="760" cy="455" r="48" fill="#f6d39a" opacity=".55"/>
+      <path d="M0 470 C 140 420 260 455 380 430 S 640 380 760 420 S 930 440 1000 410 V700 H0z" fill="#3b5a63"/>
+      <path d="M0 530 C 160 490 300 540 470 505 S 760 470 880 505 S 970 515 1000 500 V700 H0z" fill="#26424b"/>
+      <path d="M0 600 C 200 560 360 610 560 580 S 860 560 1000 590 V700 H0z" fill="#162a31"/>
+    </svg>
+
+    <div class="grid">
+      <!-- 1 Calendar (medium) -->
+      <article class="w m cal" aria-label="Calendar">
+        <div class="left">
+          <div class="cap dow" id="cal-dow">Saturday</div>
+          <div class="date" id="cal-date">31</div>
+          <div id="cal-events"></div>
+        </div>
+        <div class="month">
+          <div class="cap mname" id="cal-month">October</div>
+          <div class="days" id="cal-days"></div>
+        </div>
+      </article>
+
+      <!-- 2 Weather (medium) -->
+      <article class="w m wx" aria-label="Weather, sample data">
+        <div class="top">
+          <div>
+            <div class="row body bold">Paris <svg class="ic" style="width:.7em;height:.7em"><use href="#i-loc"/></svg></div>
+            <div class="temp">14°</div>
+          </div>
+          <div class="cond">
+            <svg class="ic"><use href="#i-cloudsun"/></svg>
+            <div class="sub bold">Partly Cloudy</div>
+            <div class="sub fg2w">H:16° L:9°</div>
+          </div>
+        </div>
+        <div class="hours" id="wx-hours"></div>
+      </article>
+
+      <!-- 3 Analog clock (small) -->
+      <article class="w clock" aria-label="Analog clock, local time">
+        <svg viewBox="0 0 100 100" id="analog" role="img" aria-label="Local time"></svg>
+      </article>
+
+      <!-- 4 System (small) -->
+      <article class="w sys" aria-label="System monitor, simulated readings">
+        <div class="row cap fg2 bold"><svg class="ic"><use href="#i-cpu"/></svg>CPU</div>
+        <div class="big" id="cpu-now">12%</div>
+        <svg id="cpu-spark" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="meter">
+          <div class="row cap"><span class="bold">Memory</span><span class="fg2" id="mem-txt">9.3 of 16 GB</span></div>
+          <div class="bar"><b id="mem-bar" style="width:58%; --c: var(--purple)"></b></div>
+        </div>
+        <div class="meter">
+          <div class="row cap"><span class="bold">Disk C:</span><span class="fg2">71% used</span></div>
+          <div class="bar"><b style="width:71%; --c: var(--orange)"></b></div>
+        </div>
+      </article>
+
+      <!-- 5 Now playing (medium) -->
+      <article class="w m np" aria-label="Now playing, sample track">
+        <div class="art" role="img" aria-label="Album art"></div>
+        <div class="info">
+          <div>
+            <div class="cap fg2 bold">NOW PLAYING</div>
+            <div class="title">Low Tide Radio</div>
+            <div class="sub fg2">The Harbour Lights</div>
+          </div>
+          <div>
+            <div class="bar"><b id="np-bar" style="width:38%; --c: var(--w-fg)"></b></div>
+            <div class="row cap fg2" style="justify-content:space-between;margin-top:.3em"><span id="np-pos">1:24</span><span>3:41</span></div>
+          </div>
+          <div class="controls">
+            <button class="wbtn" type="button" aria-label="Previous track"><svg class="ic"><use href="#i-prev"/></svg></button>
+            <button class="wbtn play" type="button" id="np-play" aria-label="Pause"><svg class="ic"><use href="#i-pause"/></svg></button>
+            <button class="wbtn" type="button" aria-label="Next track"><svg class="ic"><use href="#i-next"/></svg></button>
+          </div>
+        </div>
+      </article>
+
+      <!-- 6 Photo frame (medium) -->
+      <article class="w m photo" aria-label="Photo frame, sample pictures">
+        <canvas id="photo" width="728" height="340" role="img" aria-label="Photo"></canvas>
+        <div class="shade"></div>
+        <div class="meta">
+          <div>
+            <div class="sub bold" id="photo-title">Evening tide</div>
+            <div class="cap fg2w" id="photo-sub">Pictures › Favorites · 1 of 3</div>
+          </div>
+          <button class="wbtn next" type="button" id="photo-next" aria-label="Show the next photo"><svg class="ic"><use href="#i-next"/></svg></button>
+        </div>
+      </article>
+
+      <!-- 7 GitHub (medium) -->
+      <article class="w m gh" aria-label="GitHub profile and contributions">
+        <div class="gh-top">
+          <img class="avatar" alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAK8SURBVHhe7Z29alRRFIXnxfQBYmdhUhorC+MzpLGyE0EEwcImT2BpFZCksjJo6Quci4EI+Zkj+9jNCOteT1b2zPW78MEwsPdaN9+kubc4i1LK4+Vy+W4YBrhj4u++KKUcVa60axEm4sMwDHDHICAZBCSDgGQQkIwWUEr9+euint9c1fPry+ncXLX52LO2ewwzz5cCYvjHx0/17OXb+u3V+8nEXMy3En/Zr5h7vhQQBmPJ8f3d+vnBk8nEXMzHntXdY5h7vhZwfdlMxrLT3WeTibmYjz2ru8cw93wECNz5CBC48xEgcOcjQODOR4DAnY8AgTsfAQJ3PgIE7nwECNz5CBC48xEgcOcjQODO9wvY2a/f33yoF7W2XVOJuZiPPau7x5Ceny3g5OHT+uX5YbuJ2DOVmIv52LO6ewzZ+ekCTvcOWvn4BcWOyezs/7n5vYP13WNIzo8duQL+cxCQDAKSQUAyCEgGAckgIBkEJIOAZBCQDAKSQUAyCEgmX0Dy08js/NiRKiD7eXx2frqA9DdS2fnpAkQBxdzzESBw5yNA4M5HgMCdjwCBOx8BAnc+AgTufAQI3PkIELjzESBw5yNA4M5HgMCdjwCBO98v4BaeRkb+8b1HrcNUYi7me/K3+mlo7/P44OuL12vfTaFnfuvfB/S+kbqNX3DM/+t/0Na/EetF3YBi0/sjwIzqjwAzqj8CzKj+CDCj+iPAjOqPADOqPwLMqP4IMKP6I8CM6o8AM6o/Asyo/ggwo/ojwIzqjwAzqj8CzKj+CDCj+iPAjOqPADOqPwLMqP4IMKP6I8CM6o8AM6o/Asyo/ggwo/ojwIzqjwAzqj8CzKj+CDCj+msBnaeJ9qJOI1Vsen8poPc83V7UebyKTe8vBXSfKN2LOJFasuH9tQCwgoBkEJAMApJBQDJNQCnlqH3iSrl+Awt5zv7AKcPaAAAAAElFTkSuQmCC">
+          <div class="who">
+            <div class="sub bold" id="gh-name"></div>
+            <div class="cap fg2" id="gh-meta"></div>
+          </div>
+          <div class="streak">
+            <div class="row"><svg class="ic" aria-hidden="true"><use href="#i-flame"/></svg><span class="n" id="gh-streak">0</span></div>
+            <div class="cap fg2">day streak</div>
+          </div>
+        </div>
+        <div class="gh-graph" id="gh-graph" role="img"></div>
+        <div class="row cap fg2 gh-foot"><span id="gh-total"></span><span id="gh-today"></span></div>
+      </article>
+
+      <!-- 8 Focus timer (small) -->
+      <article class="w timer" aria-label="Focus timer">
+        <div class="row" style="justify-content:space-between">
+          <span class="sub ttl">Focus</span>
+          <span class="cap fg2" id="t-state">Paused</span>
+        </div>
+        <div class="mid">
+          <div class="tring">
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+              <circle class="track" cx="50" cy="50" r="44" stroke-width="9"/>
+              <circle class="val" id="t-ring" cx="50" cy="50" r="44" stroke-width="9" stroke-dasharray="276.46" stroke-dashoffset="0"/>
+            </svg>
+            <div class="time" id="t-time">18:42</div>
+          </div>
+          <div class="btns">
+            <button class="wbtn main" type="button" id="t-go" aria-label="Start timer"><svg class="ic"><use href="#i-play"/></svg></button>
+            <button class="wbtn" type="button" id="t-reset" aria-label="Reset timer to 25 minutes"><svg class="ic"><use href="#i-reset"/></svg></button>
+          </div>
+        </div>
+      </article>
+
+      <!-- 9 Notes (small) -->
+      <article class="w notes" aria-label="Notes">
+        <div class="row sub notes hdr" style="flex-direction:row;gap:.35em"><svg class="ic"><use href="#i-note"/></svg>Notes</div>
+        <div class="ttl">Widget ideas</div>
+        <div class="txt">Clipboard history. Network speed, up and down. Sunrise and sunset times.</div>
+        <div class="cap fg2 foot" id="note-edited">Edited today</div>
+      </article>
+      <!-- 10 Reminders (medium) -->
+      <article class="w m rem" aria-label="Reminders">
+        <div class="head">
+          <div class="badge"><svg class="ic"><use href="#i-list"/></svg></div>
+          <div>
+            <div class="count" id="rem-count">3</div>
+            <div class="sub bold" style="color:var(--blue)">Reminders</div>
+          </div>
+        </div>
+        <ul id="rem-list">
+          <li data-done="false"><button type="button"><span class="box"></span><span class="txt">Renew the domain</span></button></li>
+          <li data-done="false"><button type="button"><span class="box"></span><span class="txt">Back up the photo library</span></button></li>
+          <li data-done="true"><button type="button"><span class="box"></span><span class="txt">Order printer ink</span></button></li>
+          <li data-done="false"><button type="button"><span class="box"></span><span class="txt">Call the dentist about Tuesday</span></button></li>
+        </ul>
+      </article>
+
+    </div>
+  </section>
+
+  <div class="scene-note">
+    <span><b>Live in this page:</b> clock, calendar dates, focus timer, reminder ticks, photo shuffle.</span>
+    <span><b>Sample data:</b> weather, events, music, system readings, painted stand-in photos.</span>
+    <span><b>Your data:</b> the GitHub widget shows your real profile and contributions as of 31 Oct 2026 (a snapshot; the app would refresh it).</span>
+  </div>
+
+  <div class="two">
+    <section class="principles" aria-labelledby="p-h">
+      <h2 id="p-h">What we took from Apple</h2>
+      <ol>
+        <li>One job per widget. <span>Weather leads with the temperature and the high and low because that is what people check.</span></li>
+        <li>Apple's sizes and spacing. <span>Small 170 pt and medium 364 pt, so two smalls line up with one medium; 16 pt margins, tighter only inside grouped content.</span></li>
+        <li>Readable at a glance. <span>No text under 11 pt, the system font (Segoe UI Variable on Windows), big numbers for the one value that matters.</span></li>
+        <li>Never color alone. <span>System bars print their values beside them; finished reminders get a strike-through as well as a fill.</span></li>
+        <li>Three appearances. <span>Light, dark, and a vibrant monochrome for when the desktop is behind other windows.</span></li>
+        <li>Refresh only as often as the data changes. <span>Time ticks each second, weather every 15 minutes, the photo once an hour, notes only on edit. That is also how the app stays near zero CPU.</span></li>
+      </ol>
+    </section>
+    <section class="legend" aria-labelledby="s-h">
+      <h2 id="s-h">How each one gets built</h2>
+      <p class="muted">Everything runs in the one-process Desk Widgets app. Seven of the ten are built; Calendar, Weather and Now playing still need a data source.</p>
+      <div class="chips">
+        <span class="chip built">Built</span>
+        <span class="chip ready">Ready to build</span>
+        <span class="chip data">Needs a data source</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Widget</th><th>Shows</th><th>You can</th><th>Data on Windows</th><th>Refresh</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="n">Analog clock<span class="size">Small</span></td><td>Local or any city's time</td><td>Pick city, size, face, seconds hand</td><td>System clock and Windows time zones</td><td>1 s</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="n">Calendar<span class="size">Medium</span></td><td>Today's date, the next events, the month</td><td>Open a day in your calendar</td><td>Month grid needs nothing; events from a calendar's ICS subscription link (Google, Outlook, iCloud)</td><td>Events every 15 min, date at midnight</td><td><span class="chip data">Needs a data source</span></td></tr>
+        <tr><td class="n">Weather<span class="size">Medium</span></td><td>Temperature, conditions, high and low, next six hours</td><td>Pick the place</td><td>Open-Meteo forecast API (free, no account)</td><td>15 min</td><td><span class="chip data">Needs a data source</span></td></tr>
+        <tr><td class="n">System<span class="size">Small</span></td><td>CPU with one minute of history, memory, disk</td><td>Choose the drive</td><td>Windows performance counters</td><td>2 s</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="n">Now playing<span class="size">Medium</span></td><td>Track, artist, art, progress</td><td>Play, pause, skip</td><td>The Windows media session that the volume flyout uses (works with Spotify, browsers, Media Player)</td><td>When the track changes, progress each second while playing</td><td><span class="chip data">Needs a data source</span></td></tr>
+        <tr><td class="n">Photo frame<span class="size">Medium</span></td><td>One picture from a folder you choose, with its name</td><td>Pick the folder, skip to the next picture</td><td>Any local folder (Pictures by default); images are scaled once and cached, never kept full size in memory</td><td>1 hour, or on click</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="n">GitHub<span class="size">Medium</span></td><td>Your profile, current streak, the last 30 weeks of contributions, today's count</td><td>Open your profile</td><td>GitHub GraphQL API with a read-only token you add once (kept in Windows Credential Manager)</td><td>30 min</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="n">Focus timer<span class="size">Small</span></td><td>Time left as a ring</td><td>Start, pause, reset; set the length</td><td>Local</td><td>1 s while running, nothing while idle</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="n">Reminders<span class="size">Medium</span></td><td>Open count and the next four</td><td>Tick off, add</td><td>Saved with the widget settings in AppData</td><td>On change</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="n">Notes<span class="size">Small</span></td><td>One pinned note</td><td>Edit in place</td><td>Saved with the widget settings in AppData</td><td>On change</td><td><span class="chip built">Built</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var NS = "http://www.w3.org/2000/svg";
+  var desk = document.getElementById("desk");
+
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function fmt12(h, m) { var ap = h < 12 ? "AM" : "PM"; var hh = h % 12 || 12; return hh + ":" + pad(m) + " " + ap; }
+
+  /* Appearance switch */
+  var segButtons = document.querySelectorAll(".seg button");
+  segButtons.forEach(function (b) {
+    b.addEventListener("click", function () {
+      desk.dataset.mode = b.dataset.mode;
+      segButtons.forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    });
+  });
+
+  /* Analog clock (small) */
+  var analog = document.getElementById("analog");
+  el("circle", { cx: 50, cy: 50, r: 47, "class": "dial-face" }, analog);
+  for (var i = 0; i < 60; i++) {
+    var a = i * Math.PI / 30, major = i % 5 === 0;
+    var r1 = major ? 40.5 : 42.5, r2 = 45;
+    el("line", { x1: 50 + Math.sin(a) * r1, y1: 50 - Math.cos(a) * r1, x2: 50 + Math.sin(a) * r2, y2: 50 - Math.cos(a) * r2,
+      "class": "dial-tick", "stroke-width": major ? 1.1 : .5, "stroke-linecap": "round" }, analog);
+  }
+  for (var h = 1; h <= 12; h++) {
+    var ang = h * Math.PI / 6;
+    var t = el("text", { x: 50 + Math.sin(ang) * 32.5, y: 50 - Math.cos(ang) * 32.5 + 3.9, "text-anchor": "middle", "class": "dial-num" }, analog);
+    t.textContent = h;
+  }
+  function hand(svg, cls, len, w, tail) { return el("line", { x1: 50, y1: 50 + (tail || 0), x2: 50, y2: 50 - len, "class": cls, "stroke-width": w }, svg); }
+  var aH = hand(analog, "hand", 22, 3.6), aM = hand(analog, "hand", 34, 2.8), aS = hand(analog, "hand s", 38, 1, 8);
+  el("circle", { cx: 50, cy: 50, r: 2.6, "class": "hub" }, analog);
+  el("circle", { cx: 50, cy: 50, r: 1.8, "class": "hub s" }, analog);
+
+  function rot(line, deg) { line.setAttribute("transform", "rotate(" + deg + " 50 50)"); }
+
+  /* Calendar */
+  var DOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  var calDay = -1;
+  function renderCalendar(now) {
+    if (now.getDate() === calDay) return;
+    calDay = now.getDate();
+    document.getElementById("cal-dow").textContent = DOW[now.getDay()];
+    document.getElementById("cal-date").textContent = now.getDate();
+    document.getElementById("cal-month").textContent = MON[now.getMonth()];
+    var days = document.getElementById("cal-days");
+    days.textContent = "";
+    "SMTWTFS".split("").forEach(function (ch) { var s = document.createElement("span"); s.className = "h"; s.textContent = ch; days.appendChild(s); });
+    var first = new Date(now.getFullYear(), now.getMonth(), 1);
+    var inMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    var prevLast = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+    var lead = first.getDay();
+    var cells = Math.ceil((lead + inMonth) / 7) * 7;
+    for (var k = 0; k < cells; k++) {
+      var s = document.createElement("span"), d = k - lead + 1;
+      if (d < 1) { s.className = "o"; s.textContent = prevLast + d; }
+      else if (d > inMonth) { s.className = "o"; s.textContent = d - inMonth; }
+      else { s.textContent = d; if (d === now.getDate()) { s.className = "today"; s.setAttribute("aria-current", "date"); } }
+      days.appendChild(s);
+    }
+    // Sample events; a real holiday gets the top slot (Apple: "surprise and delight" on meaningful days).
+    var events = [];
+    if (now.getMonth() === 9 && now.getDate() === 31) events.push({ t: "Halloween", d: "All day", c: "var(--orange)" });
+    if (now.getMonth() === 11 && now.getDate() === 31) events.push({ t: "New Year's Eve", d: "All day", c: "var(--purple)" });
+    events.push({ t: "Design sync", d: "4:00 – 4:30 PM", c: "var(--blue)" });
+    events.push({ t: "Gym", d: "6:30 PM", c: "var(--green)" });
+    var box = document.getElementById("cal-events");
+    box.textContent = "";
+    events.slice(0, 2).forEach(function (e) {
+      var row = document.createElement("div"); row.className = "ev"; row.style.setProperty("--c", e.c);
+      row.innerHTML = "<i></i><div><div class=\"t\"></div><div class=\"d\"></div></div>";
+      row.querySelector(".t").textContent = e.t;
+      row.querySelector(".d").textContent = e.d;
+      box.appendChild(row);
+    });
+  }
+
+  /* Weather hourly (sample temperatures, real clock hours) */
+  (function () {
+    var hours = document.getElementById("wx-hours");
+    var now = new Date();
+    var temps = [14, 15, 16, 15, 13, 11];
+    var icons = ["i-cloudsun", "i-sun", "i-cloudsun", "i-cloud", "i-rain", "i-moon"];
+    for (var k = 0; k < 6; k++) {
+      var hr = (now.getHours() + k) % 24;
+      if (k === 5 || hr >= 19 || hr < 6) icons[k] = k === 4 ? "i-rain" : "i-moon";
+      var col = document.createElement("div");
+      var label = k === 0 ? "Now" : ((hr % 12 || 12) + (hr < 12 ? "AM" : "PM"));
+      col.innerHTML = "<span class=\"cap fg2w bold\"></span><svg class=\"ic\"><use href=\"#" + icons[k] + "\"/></svg><span class=\"sub bold\"></span>";
+      col.firstChild.textContent = label;
+      col.lastChild.textContent = temps[k] + "°";
+      hours.appendChild(col);
+    }
+  })();
+
+  /* System monitor (simulated) */
+  var cpu = [], cpuVal = 12;
+  for (var q = 0; q < 30; q++) { cpuVal = Math.max(2, Math.min(64, cpuVal + (Math.random() - .5) * 10)); cpu.push(cpuVal); }
+  var spark = document.getElementById("cpu-spark");
+  function renderSpark() {
+    var w = 120, hgt = 34, max = Math.max(40, Math.max.apply(null, cpu) * 1.25), step = w / (cpu.length - 1);
+    var pts = cpu.map(function (v, idx) { return [idx * step, hgt - 2 - v / max * (hgt - 4)]; });
+    var line = pts.map(function (p, idx) { return (idx ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" ");
+    spark.innerHTML = "";
+    [0.25, 0.5, 0.75].forEach(function (f) { el("line", { x1: 0, x2: w, y1: hgt * f, y2: hgt * f, "class": "spark-grid", "vector-effect": "non-scaling-stroke" }, spark); });
+    el("path", { d: line + " L" + w + " " + hgt + " L0 " + hgt + "Z", "class": "spark-area" }, spark);
+    el("path", { d: line, "class": "spark-line", "vector-effect": "non-scaling-stroke" }, spark);
+    var last = pts[pts.length - 1];
+    el("circle", { cx: last[0] - 1.5, cy: last[1], r: 2, "class": "spark-dot" }, spark);
+    document.getElementById("cpu-now").textContent = Math.round(cpu[cpu.length - 1]) + "%";
+  }
+  var mem = 9.3;
+  function tickSystem() {
+    cpuVal = Math.max(2, Math.min(64, cpuVal + (Math.random() - .5) * 12));
+    cpu.push(cpuVal); cpu.shift();
+    renderSpark();
+    mem = Math.max(8.4, Math.min(10.6, mem + (Math.random() - .5) * .3));
+    document.getElementById("mem-txt").textContent = mem.toFixed(1) + " of 16 GB";
+    document.getElementById("mem-bar").style.width = (mem / 16 * 100).toFixed(1) + "%";
+  }
+  renderSpark();
+
+  /* Focus timer: 25 minute session, opened mid-session and paused */
+  var TOTAL = 25 * 60, left = 18 * 60 + 42, running = false;
+  var C2 = 2 * Math.PI * 44;
+  var tRing = document.getElementById("t-ring"), tTime = document.getElementById("t-time"),
+      tGo = document.getElementById("t-go"), tState = document.getElementById("t-state");
+  function renderTimer() {
+    tTime.textContent = Math.floor(left / 60) + ":" + pad(left % 60);
+    tRing.setAttribute("stroke-dashoffset", (C2 * (1 - left / TOTAL)).toFixed(2));
+    tState.textContent = left === 0 ? "Done" : running ? "Running" : "Paused";
+    tGo.setAttribute("aria-label", running ? "Pause timer" : "Start timer");
+    tGo.querySelector("use").setAttribute("href", running ? "#i-pause" : "#i-play");
+  }
+  tGo.addEventListener("click", function () { if (left === 0) left = TOTAL; running = !running; renderTimer(); });
+  document.getElementById("t-reset").addEventListener("click", function () { running = false; left = TOTAL; renderTimer(); });
+  renderTimer();
+
+  /* Now playing (sample track; play/pause works) */
+  var npPos = 84, npLen = 221, playing = true;
+  var npPlay = document.getElementById("np-play");
+  function renderNP() {
+    document.getElementById("np-pos").textContent = Math.floor(npPos / 60) + ":" + pad(npPos % 60);
+    document.getElementById("np-bar").style.width = (npPos / npLen * 100).toFixed(1) + "%";
+    npPlay.setAttribute("aria-label", playing ? "Pause" : "Play");
+    npPlay.querySelector("use").setAttribute("href", playing ? "#i-pause" : "#i-play");
+  }
+  npPlay.addEventListener("click", function () { playing = !playing; renderNP(); });
+  renderNP();
+
+  /* Reminders */
+  var remList = document.getElementById("rem-list");
+  function renderRem() {
+    var open = remList.querySelectorAll("li[data-done=\"false\"]").length;
+    document.getElementById("rem-count").textContent = open;
+  }
+  remList.querySelectorAll("li").forEach(function (li) {
+    var b = li.querySelector("button");
+    b.setAttribute("aria-pressed", li.dataset.done);
+    b.addEventListener("click", function () {
+      li.dataset.done = li.dataset.done === "true" ? "false" : "true";
+      b.setAttribute("aria-pressed", li.dataset.done);
+      renderRem();
+    });
+  });
+  renderRem();
+
+  /* Photo frame: three painted sample "photos" (a real build reads a folder and shuffles hourly) */
+  var photos = [
+    { title: "Evening tide", sky: ["#2b3a67", "#e07a5f", "#f2cc8f"], sun: [0.7, 0.52, "#ffe3a3"], hills: ["#3d405b", "#1f2440"], sea: true },
+    { title: "Lake at first light", sky: ["#9ec5e8", "#d8e7f0", "#f6efe2"], sun: [0.28, 0.4, "#fff6dc"], hills: ["#5b7d8c", "#2f4a57"], sea: true },
+    { title: "Dunes, late afternoon", sky: ["#6fa3c7", "#bfd7e6", "#f3dcb5"], sun: [0.82, 0.3, "#fff1c9"], hills: ["#d99a5b", "#a8622f"], sea: false }
+  ];
+  var photoIdx = 0, cv = document.getElementById("photo"), cx = cv.getContext("2d");
+  function ridge(y0, amp, seed, color) {
+    var W = cv.width, H = cv.height;
+    cx.beginPath(); cx.moveTo(0, H);
+    for (var x = 0; x <= W; x += 8) {
+      var y = y0 + Math.sin(x / W * 5 + seed) * amp + Math.sin(x / W * 13 + seed * 2) * amp * 0.3;
+      cx.lineTo(x, H * y);
+    }
+    cx.lineTo(W, H); cx.closePath(); cx.fillStyle = color; cx.fill();
+  }
+  function drawPhoto() {
+    var ph = photos[photoIdx], W = cv.width, H = cv.height;
+    var g = cx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, ph.sky[0]); g.addColorStop(0.6, ph.sky[1]); g.addColorStop(1, ph.sky[2]);
+    cx.fillStyle = g; cx.fillRect(0, 0, W, H);
+    var glow = cx.createRadialGradient(W * ph.sun[0], H * ph.sun[1], 0, W * ph.sun[0], H * ph.sun[1], H * 0.5);
+    glow.addColorStop(0, ph.sun[2]); glow.addColorStop(0.18, ph.sun[2]); glow.addColorStop(0.19, "rgba(255,240,200,.35)"); glow.addColorStop(1, "rgba(255,240,200,0)");
+    cx.fillStyle = glow; cx.fillRect(0, 0, W, H);
+    ridge(ph.sea ? 0.6 : 0.62, 0.05, photoIdx * 1.7 + 1, ph.hills[0]);
+    if (ph.sea) {
+      var sea = cx.createLinearGradient(0, H * 0.7, 0, H);
+      sea.addColorStop(0, ph.hills[1]); sea.addColorStop(1, "#0d1424");
+      cx.fillStyle = sea; cx.fillRect(0, H * 0.7, W, H * 0.3);
+      cx.fillStyle = "rgba(255,240,210,.35)";
+      for (var k = 0; k < 7; k++) cx.fillRect(W * ph.sun[0] - 60 + k * 9, H * (0.74 + k * 0.03), 120 - k * 18, 3);
+    } else {
+      ridge(0.78, 0.07, photoIdx * 2.3 + 4, ph.hills[1]);
+    }
+    document.getElementById("photo-title").textContent = ph.title;
+    document.getElementById("photo-sub").textContent = "Pictures › Favorites · " + (photoIdx + 1) + " of " + photos.length;
+  }
+  document.getElementById("photo-next").addEventListener("click", function () { photoIdx = (photoIdx + 1) % photos.length; drawPhoto(); });
+  drawPhoto();
+
+  /* GitHub: a snapshot of the real account, taken when this page was made */
+  var GH = {"login":"whoissaaif","name":"Syed Saifuddin","repos":16,"followers":4,"total":267,"weeks":[[["2026-04-05",0,0],["2026-04-06",0,0],["2026-04-07",0,0],["2026-04-08",0,0],["2026-04-09",0,0],["2026-04-10",0,0],["2026-04-11",0,0]],[["2026-04-12",0,0],["2026-04-13",0,0],["2026-04-14",0,0],["2026-04-15",0,0],["2026-04-16",0,0],["2026-04-17",0,0],["2026-04-18",0,0]],[["2026-04-19",0,0],["2026-04-20",0,0],["2026-04-21",0,0],["2026-04-22",0,0],["2026-04-23",0,0],["2026-04-24",0,0],["2026-04-25",0,0]],[["2026-04-26",0,0],["2026-04-27",0,0],["2026-04-28",0,0],["2026-04-29",0,0],["2026-04-30",0,0],["2026-05-01",0,0],["2026-05-02",0,0]],[["2026-05-03",0,0],["2026-05-04",0,0],["2026-05-05",0,0],["2026-05-06",0,0],["2026-05-07",0,0],["2026-05-08",0,0],["2026-05-09",0,0]],[["2026-05-10",0,0],["2026-05-11",0,0],["2026-05-12",0,0],["2026-05-13",0,0],["2026-05-14",0,0],["2026-05-15",0,0],["2026-05-16",0,0]],[["2026-05-17",0,0],["2026-05-18",0,0],["2026-05-19",0,0],["2026-05-20",0,0],["2026-05-21",0,0],["2026-05-22",0,0],["2026-05-23",0,0]],[["2026-05-24",0,0],["2026-05-25",0,0],["2026-05-26",0,0],["2026-05-27",0,0],["2026-05-28",0,0],["2026-05-29",0,0],["2026-05-30",0,0]],[["2026-05-31",0,0],["2026-06-01",0,0],["2026-06-02",0,0],["2026-06-03",6,1],["2026-06-04",0,0],["2026-06-05",0,0],["2026-06-06",0,0]],[["2026-06-07",0,0],["2026-06-08",3,1],["2026-06-09",0,0],["2026-06-10",0,0],["2026-06-11",0,0],["2026-06-12",0,0],["2026-06-13",0,0]],[["2026-06-14",0,0],["2026-06-15",0,0],["2026-06-16",0,0],["2026-06-17",0,0],["2026-06-18",0,0],["2026-06-19",0,0],["2026-06-20",0,0]],[["2026-06-21",0,0],["2026-06-22",0,0],["2026-06-23",0,0],["2026-06-24",0,0],["2026-06-25",0,0],["2026-06-26",0,0],["2026-06-27",0,0]],[["2026-06-28",0,0],["2026-06-29",0,0],["2026-06-30",0,0],["2026-07-01",0,0],["2026-07-02",0,0],["2026-07-03",0,0],["2026-07-04",0,0]],[["2026-07-05",0,0],["2026-07-06",0,0],["2026-07-07",0,0],["2026-07-08",0,0],["2026-07-09",4,1],["2026-07-10",0,0],["2026-07-11",0,0]],[["2026-07-12",3,1],["2026-07-13",0,0],["2026-07-14",0,0],["2026-07-15",0,0],["2026-07-16",0,0],["2026-07-17",0,0],["2026-07-18",0,0]],[["2026-07-19",0,0],["2026-07-20",0,0],["2026-07-21",0,0],["2026-07-22",0,0],["2026-07-23",0,0],["2026-07-24",0,0],["2026-07-25",0,0]],[["2026-07-26",0,0],["2026-07-27",0,0],["2026-07-28",0,0],["2026-07-29",0,0],["2026-07-30",0,0],["2026-07-31",0,0],["2026-08-01",0,0]],[["2026-08-02",0,0],["2026-08-03",0,0],["2026-08-04",0,0],["2026-08-05",0,0],["2026-08-06",0,0],["2026-08-07",0,0],["2026-08-08",0,0]],[["2026-08-09",0,0],["2026-08-10",0,0],["2026-08-11",0,0],["2026-08-12",0,0],["2026-08-13",0,0],["2026-08-14",0,0],["2026-08-15",0,0]],[["2026-08-16",0,0],["2026-08-17",0,0],["2026-08-18",0,0],["2026-08-19",0,0],["2026-08-20",0,0],["2026-08-21",0,0],["2026-08-22",0,0]],[["2026-08-23",0,0],["2026-08-24",0,0],["2026-08-25",0,0],["2026-08-26",0,0],["2026-08-27",0,0],["2026-08-28",0,0],["2026-08-29",0,0]],[["2026-08-30",0,0],["2026-08-31",0,0],["2026-09-01",0,0],["2026-09-02",0,0],["2026-09-03",0,0],["2026-09-04",0,0],["2026-09-05",0,0]],[["2026-09-06",0,0],["2026-09-07",0,0],["2026-09-08",0,0],["2026-09-09",0,0],["2026-09-10",0,0],["2026-09-11",0,0],["2026-09-12",0,0]],[["2026-09-13",0,0],["2026-09-14",0,0],["2026-09-15",0,0],["2026-09-16",0,0],["2026-09-17",0,0],["2026-09-18",0,0],["2026-09-19",0,0]],[["2026-09-20",0,0],["2026-09-21",0,0],["2026-09-22",0,0],["2026-09-23",0,0],["2026-09-24",0,0],["2026-09-25",0,0],["2026-09-26",0,0]],[["2026-09-27",0,0],["2026-09-28",0,0],["2026-09-29",0,0],["2026-09-30",0,0],["2026-10-01",0,0],["2026-10-02",0,0],["2026-10-03",0,0]],[["2026-10-04",0,0],["2026-10-05",0,0],["2026-10-06",0,0],["2026-10-07",0,0],["2026-10-08",1,1],["2026-10-09",35,4],["2026-10-10",44,4]],[["2026-10-11",21,3],["2026-10-12",0,0],["2026-10-13",15,2],["2026-10-14",31,4],["2026-10-15",0,0],["2026-10-16",0,0],["2026-10-17",4,1]],[["2026-10-18",8,1],["2026-10-19",6,1],["2026-10-20",0,0],["2026-10-21",1,1],["2026-10-22",0,0],["2026-10-23",0,0],["2026-10-24",0,0]],[["2026-10-25",0,0],["2026-10-26",0,0],["2026-10-27",10,2],["2026-10-28",28,4],["2026-10-29",34,4],["2026-10-30",2,1],["2026-10-31",3,1]]],"all":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,35,44,21,0,15,31,0,0,4,8,6,0,1,0,0,0,0,0,10,28,34,2,3]};
+  (function () {
+    var graph = document.getElementById("gh-graph"), last = null;
+    GH.weeks.forEach(function (w) {
+      w.forEach(function (d) {
+        var c = document.createElement("i");
+        c.className = "l" + d[2];
+        c.title = d[1] + (d[1] === 1 ? " contribution on " : " contributions on ") + new Date(d[0] + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+        graph.appendChild(c);
+        last = { el: c, count: d[1] };
+      });
+    });
+    last.el.classList.add("today");
+    // Current streak: consecutive days with contributions, ending today (or yesterday if today has none yet).
+    var all = GH.all, i = all.length - 1, streak = 0;
+    if (all[i] === 0) i--;
+    while (i >= 0 && all[i] > 0) { streak++; i--; }
+    document.getElementById("gh-name").textContent = GH.name;
+    document.getElementById("gh-meta").textContent = "@" + GH.login + " · " + GH.repos + " repos · " + GH.followers + " followers";
+    document.getElementById("gh-streak").textContent = streak;
+    document.getElementById("gh-total").textContent = GH.total.toLocaleString("en-US") + " contributions in the last year";
+    document.getElementById("gh-today").textContent = last.count + " today";
+    graph.setAttribute("aria-label", "Contribution graph for the last " + GH.weeks.length + " weeks; current streak " + streak + " days");
+  })();
+
+  /* Notes footer: a realistic "edited" time earlier today */
+  (function () {
+    var d = new Date(Date.now() - 47 * 60000);
+    document.getElementById("note-edited").textContent = "Edited " + fmt12(d.getHours(), d.getMinutes());
+  })();
+
+  /* One timer drives everything, aligned to the second (like the app). */
+  var ticks = 0;
+  function tick() {
+    var now = new Date();
+    var s = now.getSeconds(), m = now.getMinutes(), hh = now.getHours();
+    rot(aH, (hh % 12 + m / 60) * 30);
+    rot(aM, (m + s / 60) * 6);
+    rot(aS, s * 6);
+    analog.setAttribute("aria-label", "Local time " + fmt12(hh, m));
+
+    renderCalendar(now);
+    if (running && left > 0) { left--; if (left === 0) running = false; renderTimer(); }
+    if (playing) { npPos = npPos >= npLen ? 0 : npPos + 1; renderNP(); }
+    if (++ticks % 2 === 0) tickSystem();
+    setTimeout(tick, 1000 - new Date().getMilliseconds() + 5);
+  }
+  tick();
+})();
+</script>
+</body>
+</html>

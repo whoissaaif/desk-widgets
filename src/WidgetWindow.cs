@@ -106,8 +106,13 @@ namespace DeskWidgets
             IntPtr progman = Native.FindWindow("Progman", null);
             if (progman != IntPtr.Zero) Native.SetOwner(Handle, progman);
             PlaceOnScreen();
+            OnStart();
             Render();
         }
+
+        // Called once the widget is really on screen (not for library previews): start timers,
+        // background fetches, etc. here rather than in the constructor.
+        protected virtual void OnStart() { }
 
         public Size WidgetSize { get { return Measure(); } }
 
@@ -172,11 +177,15 @@ namespace DeskWidgets
         {
             if (m.Msg == Native.WM_WINDOWPOSCHANGING)
             {
-                // Pin to the bottom of the z-order: we live on the desktop, under apps.
+                // Pin to the bottom of the z-order: we live on the desktop, under apps. Only rewrite
+                // real z-order changes; plain moves and resizes pass through untouched, so several
+                // widgets never fight over the bottom slot.
                 var wp = (Native.WINDOWPOS)System.Runtime.InteropServices.Marshal.PtrToStructure(m.LParam, typeof(Native.WINDOWPOS));
-                wp.hwndInsertAfter = Native.HWND_BOTTOM;
-                wp.flags &= ~Native.SWP_NOZORDER;
-                System.Runtime.InteropServices.Marshal.StructureToPtr(wp, m.LParam, false);
+                if ((wp.flags & Native.SWP_NOZORDER) == 0 && wp.hwndInsertAfter != Native.HWND_BOTTOM)
+                {
+                    wp.hwndInsertAfter = Native.HWND_BOTTOM;
+                    System.Runtime.InteropServices.Marshal.StructureToPtr(wp, m.LParam, false);
+                }
             }
             else if (m.Msg == Native.WM_EXITSIZEMOVE)
             {
@@ -185,20 +194,48 @@ namespace DeskWidgets
             base.WndProc(ref m);
         }
 
+        // ---- mouse: a press that doesn't move is a click, moving past the drag threshold drags ----
+        bool pressed;
+        Point pressedAt;
+
+        // Points that act as buttons (shown with a hand cursor).
+        protected virtual bool IsButton(Point p) { return false; }
+        // A left click that didn't turn into a drag.
+        protected virtual void OnWidgetClick(Point p) { }
+
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e);
-            if (e.Button == MouseButtons.Left && !Locked)
-            {
-                Native.ReleaseCapture();
-                Native.SendMessage(Handle, Native.WM_NCLBUTTONDOWN, (IntPtr)Native.HTCAPTION, IntPtr.Zero);
-            }
+            if (e.Button != MouseButtons.Left) return;
+            pressed = true;
+            pressedAt = e.Location;
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            Cursor want = IsButton(e.Location) ? Cursors.Hand : Cursors.Default;
+            if (Cursor != want) Cursor = want;
+            // Only drag while the left button is really held: a press whose release we never saw
+            // (a dialog opened, the release happened elsewhere) must not turn a later hover into a drag.
+            if ((MouseButtons & MouseButtons.Left) == 0) pressed = false;
+            if (!pressed || Locked || IsButton(pressedAt)) return;
+            Size slop = SystemInformation.DragSize;
+            if (Math.Abs(e.X - pressedAt.X) < slop.Width && Math.Abs(e.Y - pressedAt.Y) < slop.Height) return;
+            pressed = false;
+            Native.ReleaseCapture();
+            Native.SendMessage(Handle, Native.WM_NCLBUTTONDOWN, (IntPtr)Native.HTCAPTION, IntPtr.Zero);
         }
 
         protected override void OnMouseUp(MouseEventArgs e)
         {
             base.OnMouseUp(e);
             if (e.Button == MouseButtons.Right) ShowMenu();
+            else if (e.Button == MouseButtons.Left && pressed)
+            {
+                pressed = false;
+                OnWidgetClick(e.Location);
+            }
         }
 
         protected override void OnPaintBackground(PaintEventArgs e) { }
