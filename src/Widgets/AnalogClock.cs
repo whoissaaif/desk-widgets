@@ -3,7 +3,6 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
-using System.Windows.Forms;
 
 namespace DeskWidgets.Widgets
 {
@@ -267,44 +266,41 @@ namespace DeskWidgets.Widgets
             hubBrush.Dispose(); secondsBrush.Dispose(); pinBrush.Dispose();
         }
 
-        protected override void BuildMenu(ToolStripItemCollection items)
+        protected override void BuildMenu(PopupMenu menu)
         {
-            var city = new ToolStripMenuItem("City");
+            var city = menu.AddSubmenu("City");
             string curZone = Settings.Get("tz", ""), curLabel = Settings.Get("label", "");
             foreach (var each in Cities)
             {
                 var ct = each;
-                string text = ct.Label.Length > 0 ? ct.Name + "  (" + ct.Label + ")" : ct.Name;
-                city.DropDownItems.Add(Choice(text, ct.Zone == curZone && ct.Label == curLabel, delegate
+                string text = ct.Label.Length > 0 ? ct.Name + "\t" + ct.Label : ct.Name;
+                city.AddChoice(text, ct.Zone == curZone && ct.Label == curLabel, delegate
                 {
                     Settings.Set("label", ct.Label);
                     Settings.Set("tz", ct.Zone);
                     Changed();
-                }));
+                });
+                if (ct.Zone.Length == 0) city.AddSeparator();
             }
-            items.Add(city);
 
-            var size = new ToolStripMenuItem("Size");
+            var size = menu.AddSubmenu("Size");
             int curSize = Settings.GetInt("size", 170);
             for (int i = 0; i < SizeOptions.Length; i++)
             {
                 int px = SizeOptions[i];
-                size.DropDownItems.Add(Choice(SizeNames[i], curSize == px, delegate { Settings.Set("size", px); Changed(); }));
+                size.AddChoice(SizeNames[i], curSize == px, delegate { Settings.Set("size", px); Changed(); });
             }
-            items.Add(size);
 
-            var seconds = new ToolStripMenuItem("Seconds hand");
+            var seconds = menu.AddSubmenu("Seconds hand");
             string curMode = SecondsMode;
-            seconds.DropDownItems.Add(Choice("Ticking (lightest)", curMode == "tick", delegate { Settings.Set("seconds", "tick"); Changed(); }));
-            seconds.DropDownItems.Add(Choice("Smooth sweep", curMode == "smooth", delegate { Settings.Set("seconds", "smooth"); Changed(); }));
-            seconds.DropDownItems.Add(Choice("Hidden", curMode == "off", delegate { Settings.Set("seconds", "off"); Changed(); }));
-            items.Add(seconds);
+            seconds.AddChoice("Ticking", curMode == "tick", delegate { Settings.Set("seconds", "tick"); Changed(); });
+            seconds.AddChoice("Smooth sweep", curMode == "smooth", delegate { Settings.Set("seconds", "smooth"); Changed(); });
+            seconds.AddChoice("Hidden", curMode == "off", delegate { Settings.Set("seconds", "off"); Changed(); });
 
-            var face = new ToolStripMenuItem("Face");
+            var face = menu.AddSubmenu("Face");
             bool dark = CurrentTheme == DarkTheme;
-            face.DropDownItems.Add(Choice("Light", !dark, delegate { Settings.Set("face", "light"); Changed(); }));
-            face.DropDownItems.Add(Choice("Dark", dark, delegate { Settings.Set("face", "dark"); Changed(); }));
-            items.Add(face);
+            face.AddChoice("Light", !dark, delegate { Settings.Set("face", "light"); Changed(); });
+            face.AddChoice("Dark", dark, delegate { Settings.Set("face", "dark"); Changed(); });
         }
 
         protected override void Dispose(bool disposing)

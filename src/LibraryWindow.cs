@@ -1,59 +1,150 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
 namespace DeskWidgets
 {
-    // The widget library: a card per widget type. Drag a card onto the desktop (or double-click
-    // it) to add that widget. Only exists while open, so it costs nothing the rest of the time.
+    // The main app window: a category sidebar, and per category a banner plus a card per widget.
+    // Drag a card onto the desktop (or double-click it) to add that widget. The window only exists
+    // while open, so it costs nothing the rest of the time.
     sealed class LibraryWindow : Form
     {
-        static readonly Color Bg = Color.FromArgb(28, 28, 30);
-        readonly FlowLayoutPanel grid;
+        internal static readonly Color Bg = Color.FromArgb(28, 28, 30);
+        internal static readonly Color SidebarBg = Color.FromArgb(36, 36, 38);
+        internal static readonly Color Muted = Color.FromArgb(152, 152, 158);
+        internal static readonly Color Accent = Color.FromArgb(255, 159, 10);
+
+        sealed class CategorySection
+        {
+            public WidgetCategory Category;
+            public CategoryBanner Banner;
+            public List<WidgetCard> Cards = new List<WidgetCard>();
+        }
+
+        readonly Panel content;
+        readonly Label hint;
+        readonly List<CategorySection> sections = new List<CategorySection>();
+        readonly List<SidebarItem> nav = new List<SidebarItem>();
+        readonly SidebarItem startup;
+        string filter; // category id, or null for all
 
         public LibraryWindow()
         {
-            Text = "Widget Library";
+            Text = "Desk Widgets";
             Icon = App.AppIcon;
             BackColor = Bg;
             ForeColor = Color.White;
             Font = new Font("Segoe UI", 9f);
             AutoScaleMode = AutoScaleMode.None;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(WidgetWindow.Px(620), WidgetWindow.Px(480));
-            MinimumSize = new Size(WidgetWindow.Px(260), WidgetWindow.Px(300));
+            ClientSize = new Size(Px(880), Px(580));
+            MinimumSize = new Size(Px(560), Px(400));
 
-            grid = new FlowLayoutPanel
+            content = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Bg };
+            hint = new Label { Text = "Drag a widget onto your desktop, or double-click to add it.", ForeColor = Muted, AutoSize = true };
+            content.Controls.Add(hint);
+            foreach (var cat in WidgetRegistry.Categories)
             {
-                Dock = DockStyle.Fill,
-                AutoScroll = true,
-                Padding = new Padding(WidgetWindow.Px(14), 0, WidgetWindow.Px(14), WidgetWindow.Px(14)),
-                BackColor = Bg
+                var types = WidgetRegistry.InCategory(cat.Id);
+                if (types.Length == 0) continue;
+                var sec = new CategorySection { Category = cat, Banner = new CategoryBanner(cat, types) };
+                content.Controls.Add(sec.Banner);
+                foreach (var t in types)
+                {
+                    var card = new WidgetCard(t);
+                    sec.Cards.Add(card);
+                    content.Controls.Add(card);
+                }
+                sections.Add(sec);
+            }
+            content.Resize += delegate { LayoutContent(); };
+
+            var sidebar = new Panel { Dock = DockStyle.Left, Width = Px(214), BackColor = SidebarBg };
+            sidebar.Controls.Add(new Label
+            {
+                Text = "Desk Widgets", Font = new Font("Segoe UI Semibold", 14f), AutoSize = true,
+                Location = new Point(Px(18), Px(18))
+            });
+            int y = Px(70);
+            AddNav(sidebar, '', "All widgets", null, ref y);
+            foreach (var sec in sections) AddNav(sidebar, sec.Category.Glyph, sec.Category.Name, sec.Category.Id, ref y);
+
+            startup = new SidebarItem(App.StartWithWindows ? '' : '', "Start with Windows");
+            startup.SetBounds(Px(8), sidebar.Height - Px(52), sidebar.Width - Px(16), Px(38));
+            startup.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
+            startup.Click += delegate
+            {
+                App.StartWithWindows = !App.StartWithWindows;
+                startup.Glyph = App.StartWithWindows ? '' : '';
+                startup.Invalidate();
             };
-            foreach (var type in WidgetRegistry.Types) grid.Controls.Add(new WidgetCard(type));
+            sidebar.Controls.Add(startup);
 
-            var header = new Panel { Dock = DockStyle.Top, Height = WidgetWindow.Px(78), BackColor = Bg };
-            header.Controls.Add(new Label
-            {
-                Text = "Drag a widget onto your desktop, or double-click to add it.",
-                ForeColor = Color.FromArgb(152, 152, 158), AutoSize = true,
-                Location = new Point(WidgetWindow.Px(22), WidgetWindow.Px(48))
-            });
-            header.Controls.Add(new Label
-            {
-                Text = "Widget Library", Font = new Font("Segoe UI Semibold", 16f), AutoSize = true,
-                Location = new Point(WidgetWindow.Px(18), WidgetWindow.Px(12))
-            });
-
-            Controls.Add(grid);
-            Controls.Add(header);
+            Controls.Add(content);
+            Controls.Add(sidebar);
             App.Current.WidgetsChanged += OnWidgetsChanged;
+            SelectCategory(null);
+        }
+
+        static int Px(float v) { return WidgetWindow.Px(v); }
+
+        void AddNav(Panel sidebar, char glyph, string text, string categoryId, ref int y)
+        {
+            var item = new SidebarItem(glyph, text) { Tag = categoryId };
+            item.SetBounds(Px(8), y, sidebar.Width - Px(16), Px(38));
+            item.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
+            item.Click += delegate { SelectCategory((string)item.Tag); };
+            sidebar.Controls.Add(item);
+            nav.Add(item);
+            y += Px(42);
+        }
+
+        void SelectCategory(string categoryId)
+        {
+            filter = categoryId;
+            foreach (var item in nav)
+            {
+                item.Selected = (string)item.Tag == categoryId;
+                item.Invalidate();
+            }
+            content.AutoScrollPosition = Point.Empty;
+            LayoutContent();
+        }
+
+        // Manual layout: banner, then a wrapping grid of cards, per visible category.
+        void LayoutContent()
+        {
+            int pad = Px(24), gap = Px(14);
+            int width = Math.Max(Px(200), content.ClientSize.Width - pad * 2);
+            int scroll = content.AutoScrollPosition.Y;
+            int y = Px(22);
+            content.SuspendLayout();
+            hint.Location = new Point(pad, y + scroll);
+            y += hint.Height + Px(16);
+            foreach (var sec in sections)
+            {
+                bool show = filter == null || sec.Category.Id == filter;
+                sec.Banner.Visible = show;
+                foreach (var card in sec.Cards) card.Visible = show;
+                if (!show) continue;
+
+                sec.Banner.SetBounds(pad, y + scroll, width, Px(68));
+                y += Px(68) + gap;
+                int cw = sec.Cards[0].Width, ch = sec.Cards[0].Height;
+                int cols = Math.Max(1, (width + gap) / (cw + gap));
+                for (int i = 0; i < sec.Cards.Count; i++)
+                    sec.Cards[i].Location = new Point(pad + (i % cols) * (cw + gap), y + scroll + (i / cols) * (ch + gap));
+                y += (sec.Cards.Count + cols - 1) / cols * (ch + gap) + Px(20);
+            }
+            content.AutoScrollMinSize = new Size(0, y);
+            content.ResumeLayout();
         }
 
         void OnWidgetsChanged()
         {
-            foreach (Control c in grid.Controls) c.Invalidate();
+            foreach (Control c in content.Controls) c.Invalidate();
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -67,6 +158,117 @@ namespace DeskWidgets
         {
             App.Current.WidgetsChanged -= OnWidgetsChanged;
             base.OnFormClosed(e);
+        }
+
+        internal static GraphicsPath RoundRect(Rectangle r, int radius)
+        {
+            int d = radius * 2;
+            var p = new GraphicsPath();
+            p.AddArc(r.X, r.Y, d, d, 180, 90);
+            p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            p.CloseFigure();
+            return p;
+        }
+
+        static Font iconFont;
+
+        // Windows 11 ships "Segoe Fluent Icons", Windows 10 "Segoe MDL2 Assets" (same code points).
+        internal static Font IconFont
+        {
+            get
+            {
+                if (iconFont == null)
+                {
+                    iconFont = new Font("Segoe Fluent Icons", 11f);
+                    if (iconFont.Name != "Segoe Fluent Icons") { iconFont.Dispose(); iconFont = new Font("Segoe MDL2 Assets", 11f); }
+                }
+                return iconFont;
+            }
+        }
+    }
+
+    sealed class SidebarItem : Control
+    {
+        public char Glyph;
+        public bool Selected;
+        bool hover;
+
+        public SidebarItem(char glyph, string text)
+        {
+            Glyph = glyph;
+            Text = text;
+            Cursor = Cursors.Hand;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.Clear(Parent.BackColor);
+            if (Selected || hover)
+                using (var path = LibraryWindow.RoundRect(new Rectangle(0, 0, Width - 1, Height - 1), WidgetWindow.Px(6)))
+                using (var b = new SolidBrush(Selected ? Color.FromArgb(52, 52, 55) : Color.FromArgb(44, 44, 47)))
+                    g.FillPath(b, path);
+            if (Selected)
+                using (var path = LibraryWindow.RoundRect(new Rectangle(0, Height / 2 - WidgetWindow.Px(8), WidgetWindow.Px(3), WidgetWindow.Px(16)), WidgetWindow.Px(1)))
+                using (var b = new SolidBrush(LibraryWindow.Accent))
+                    g.FillPath(b, path);
+
+            var flags = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding;
+            TextRenderer.DrawText(g, Glyph.ToString(), LibraryWindow.IconFont,
+                new Rectangle(WidgetWindow.Px(14), 0, WidgetWindow.Px(24), Height), Color.White, flags);
+            TextRenderer.DrawText(g, Text, Font, new Rectangle(WidgetWindow.Px(44), 0, Width - WidgetWindow.Px(48), Height),
+                Color.White, flags | TextFormatFlags.EndEllipsis);
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+    }
+
+    sealed class CategoryBanner : Control
+    {
+        readonly WidgetCategory category;
+        readonly WidgetType[] types;
+
+        public CategoryBanner(WidgetCategory category, WidgetType[] types)
+        {
+            this.category = category;
+            this.types = types;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.Clear(Parent.BackColor);
+            using (var path = LibraryWindow.RoundRect(new Rectangle(0, 0, Width - 1, Height - 1), WidgetWindow.Px(12)))
+            using (var b = new LinearGradientBrush(ClientRectangle, Color.FromArgb(54, 46, 36), Color.FromArgb(40, 40, 42), LinearGradientMode.Horizontal))
+                g.FillPath(b, path);
+
+            int tile = Height - WidgetWindow.Px(24), tx = WidgetWindow.Px(12), ty = (Height - tile) / 2;
+            using (var path = LibraryWindow.RoundRect(new Rectangle(tx, ty, tile, tile), WidgetWindow.Px(8)))
+            using (var b = new SolidBrush(LibraryWindow.Accent))
+                g.FillPath(b, path);
+            using (var big = new Font(LibraryWindow.IconFont.FontFamily, 14f))
+                TextRenderer.DrawText(g, category.Glyph.ToString(), big, new Rectangle(tx, ty, tile, tile), Color.White,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+
+            int textX = tx + tile + WidgetWindow.Px(14);
+            using (var title = new Font("Segoe UI Semibold", 13f))
+                TextRenderer.DrawText(g, category.Name, title, new Point(textX, ty - WidgetWindow.Px(3)), Color.White);
+            TextRenderer.DrawText(g, category.Description, Font, new Point(textX, ty + tile - WidgetWindow.Px(17)), LibraryWindow.Muted);
+
+            int placed = 0;
+            foreach (var t in types) placed += App.Current.CountOf(t.Id);
+            string right = types.Length + (types.Length == 1 ? " widget" : " widgets") + (placed > 0 ? "  ·  " + placed + " on desktop" : "");
+            TextRenderer.DrawText(g, right, Font, new Rectangle(0, 0, Width - WidgetWindow.Px(18), Height), LibraryWindow.Muted,
+                TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
         }
     }
 
@@ -98,7 +300,7 @@ namespace DeskWidgets
             g.Clear(Parent.BackColor);
 
             int pad = WidgetWindow.Px(12);
-            using (var path = RoundRect(new Rectangle(0, 0, Width - 1, Height - 1), WidgetWindow.Px(14)))
+            using (var path = LibraryWindow.RoundRect(new Rectangle(0, 0, Width - 1, Height - 1), WidgetWindow.Px(14)))
             using (var b = new SolidBrush(hover ? Color.FromArgb(58, 58, 60) : Color.FromArgb(44, 44, 46)))
                 g.FillPath(b, path);
 
@@ -112,11 +314,11 @@ namespace DeskWidgets
                 TextRenderer.DrawText(g, type.Name, nameFont, new Point(pad, textTop), Color.White);
             int lineW = Width - pad * 2;
             TextRenderer.DrawText(g, type.Description, Font, new Rectangle(pad, textTop + WidgetWindow.Px(21), lineW, WidgetWindow.Px(18)),
-                Color.FromArgb(152, 152, 158), TextFormatFlags.EndEllipsis);
+                LibraryWindow.Muted, TextFormatFlags.EndEllipsis);
             int count = App.Current.CountOf(type.Id);
             if (count > 0)
                 TextRenderer.DrawText(g, count + " on desktop", Font, new Rectangle(pad, textTop + WidgetWindow.Px(39), lineW, WidgetWindow.Px(18)),
-                    Color.FromArgb(255, 159, 10), TextFormatFlags.EndEllipsis);
+                    LibraryWindow.Accent, TextFormatFlags.EndEllipsis);
         }
 
         protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
@@ -148,16 +350,23 @@ namespace DeskWidgets
         protected override void OnMouseUp(MouseEventArgs e)
         {
             base.OnMouseUp(e);
-            if (!dragging) return;
-            EndDrag();
-            // Dropped outside the library window = place it there.
-            if (!FindForm().Bounds.Contains(Cursor.Position)) App.Current.AddWidget(type, Cursor.Position);
+            Drop();
         }
 
+        // WinForms may release capture before or after MouseUp, so both paths finish the drag.
         protected override void OnMouseCaptureChanged(EventArgs e)
         {
             base.OnMouseCaptureChanged(e);
-            if (dragging && !Capture) EndDrag();
+            if (!Capture) Drop();
+        }
+
+        void Drop()
+        {
+            if (!dragging) return;
+            EndDrag();
+            // Dropped outside the library window = place it there.
+            Point at = Cursor.Position;
+            if (!FindForm().Bounds.Contains(at)) App.Current.AddWidget(type, at);
         }
 
         protected override void OnDoubleClick(EventArgs e)
@@ -170,18 +379,6 @@ namespace DeskWidgets
         {
             dragging = false;
             if (ghost != null) { ghost.Dispose(); ghost = null; }
-        }
-
-        static GraphicsPath RoundRect(Rectangle r, int radius)
-        {
-            int d = radius * 2;
-            var p = new GraphicsPath();
-            p.AddArc(r.X, r.Y, d, d, 180, 90);
-            p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
-            p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
-            p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
-            p.CloseFigure();
-            return p;
         }
 
         protected override void Dispose(bool disposing)

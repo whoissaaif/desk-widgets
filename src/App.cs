@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -13,24 +14,29 @@ namespace DeskWidgets
     static class Program
     {
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
+            // --background: started by Windows at sign-in, so restore widgets without opening the window.
+            bool background = args.Contains("--background");
             bool first;
             using (new Mutex(true, "DeskWidgets.SingleInstance", out first))
             using (var showLibrary = new EventWaitHandle(false, EventResetMode.AutoReset, "DeskWidgets.ShowLibrary"))
             {
-                // Launching the exe again just opens the library in the running instance.
+                // Launching the app again (Start menu, exe) just opens the window of the running instance.
                 if (!first)
                 {
-                    Native.AllowSetForegroundWindow(-1); // let the running instance bring its window forward
-                    showLibrary.Set();
+                    if (!background)
+                    {
+                        Native.AllowSetForegroundWindow(-1); // let the running instance bring its window forward
+                        showLibrary.Set();
+                    }
                     return;
                 }
                 Native.SetProcessDPIAware();
                 using (var g = Graphics.FromHwnd(IntPtr.Zero)) WidgetWindow.Dpi = g.DpiX / 96f;
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                Application.Run(new App(showLibrary));
+                Application.Run(new App(showLibrary, !background));
             }
         }
     }
@@ -38,11 +44,12 @@ namespace DeskWidgets
     // Owns the tray icon, the config file and all widget windows (one process for all widgets).
     sealed class App : ApplicationContext
     {
+        const string AppName = "Desk Widgets";
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         const string RunName = "DeskWidgets";
 
         public static App Current { get; private set; }
-        public static readonly Icon AppIcon = MakeTrayIcon();
+        public static readonly Icon AppIcon = LoadIcon(Size.Empty);
 
         public event Action WidgetsChanged;
 
@@ -53,30 +60,31 @@ namespace DeskWidgets
         readonly RegisteredWaitHandle showLibraryWait;
         LibraryWindow library;
 
-        public App(EventWaitHandle showLibrary)
+        public App(EventWaitHandle showLibrary, bool openWindow)
         {
             Current = this;
+            messageWindow = new MessageWindow(ReopenAll, OpenLibrary);
+            PopupMenu.Owner = messageWindow.Handle;
+            Native.FollowSystemThemeForMenus(messageWindow.Handle);
+
             config = Config.Load(ConfigPath());
             OpenAll();
 
-            var trayMenu = new ContextMenuStrip();
-            trayMenu.Opening += delegate(object s, System.ComponentModel.CancelEventArgs e)
+            tray = new NotifyIcon { Icon = LoadIcon(SystemInformation.SmallIconSize), Text = AppName, Visible = true };
+            tray.MouseClick += delegate(object s, MouseEventArgs e)
             {
-                trayMenu.Items.Clear();
-                FillAppMenu(trayMenu.Items);
-                e.Cancel = false;
+                if (e.Button == MouseButtons.Left) OpenLibrary();
+                else if (e.Button == MouseButtons.Right) ShowAppMenu();
             };
-            tray = new NotifyIcon { Icon = AppIcon, Text = "Desk Widgets", ContextMenuStrip = trayMenu, Visible = true };
-            tray.MouseClick += delegate(object s, MouseEventArgs e) { if (e.Button == MouseButtons.Left) OpenLibrary(); };
 
             if (StartWithWindows) StartWithWindows = true; // exe may have moved: refresh the path
+            EnsureStartMenuShortcut();
             SystemEvents.SessionSwitch += OnSessionSwitch;
             SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
-            messageWindow = new MessageWindow(ReopenAll, OpenLibrary);
             showLibraryWait = ThreadPool.RegisterWaitForSingleObject(showLibrary,
                 delegate { messageWindow.PostOpenLibrary(); }, null, Timeout.Infinite, false);
 
-            if (config.Sections.Count == 0) OpenLibrary(); // first run on this machine
+            if (openWindow || config.Sections.Count == 0) OpenLibrary();
         }
 
         // Portable mode if a widgets.ini sits next to the exe (e.g. on a USB stick),
@@ -161,19 +169,22 @@ namespace DeskWidgets
             RaiseWidgetsChanged();
         }
 
-        public void FillAppMenu(ToolStripItemCollection items)
+        public void FillAppMenu(PopupMenu menu)
         {
-            var open = new ToolStripMenuItem("Widget library…", null, delegate { OpenLibrary(); });
-            open.Font = new Font(open.Font, FontStyle.Bold);
-            items.Add(open);
-            var startup = new ToolStripMenuItem("Start with Windows", null, delegate { StartWithWindows = !StartWithWindows; });
-            startup.Checked = StartWithWindows;
-            items.Add(startup);
-            items.Add(new ToolStripSeparator());
-            items.Add("Exit Desk Widgets", null, delegate { Exit(); });
+            menu.AddBold("Open " + AppName, OpenLibrary);
+            menu.AddCheck("Start with Windows", StartWithWindows, delegate { StartWithWindows = !StartWithWindows; });
+            menu.AddSeparator();
+            menu.Add("Exit " + AppName, Exit);
         }
 
-        static bool StartWithWindows
+        void ShowAppMenu()
+        {
+            var menu = new PopupMenu();
+            FillAppMenu(menu);
+            menu.Show(Cursor.Position);
+        }
+
+        public static bool StartWithWindows
         {
             get
             {
@@ -184,9 +195,39 @@ namespace DeskWidgets
             {
                 using (var k = Registry.CurrentUser.CreateSubKey(RunKey))
                 {
-                    if (value) k.SetValue(RunName, "\"" + Application.ExecutablePath + "\"");
+                    if (value) k.SetValue(RunName, "\"" + Application.ExecutablePath + "\" --background");
                     else k.DeleteValue(RunName, false);
                 }
+            }
+        }
+
+        // Start menu entry (so the app is searchable), created or re-pointed at this exe.
+        static void EnsureStartMenuShortcut()
+        {
+            string lnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), AppName + ".lnk");
+            string exe = Application.ExecutablePath;
+            Type shellType = Type.GetTypeFromProgID("WScript.Shell");
+            if (shellType == null) return;
+            object shell = null, shortcut = null;
+            try
+            {
+                shell = Activator.CreateInstance(shellType);
+                shortcut = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { lnk });
+                Type t = shortcut.GetType();
+                if (File.Exists(lnk) && string.Equals((string)t.InvokeMember("TargetPath", BindingFlags.GetProperty, null, shortcut, null),
+                        exe, StringComparison.OrdinalIgnoreCase))
+                    return;
+                t.InvokeMember("TargetPath", BindingFlags.SetProperty, null, shortcut, new object[] { exe });
+                t.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, shortcut, new object[] { Path.GetDirectoryName(exe) });
+                t.InvokeMember("Description", BindingFlags.SetProperty, null, shortcut, new object[] { "Lightweight desktop widgets" });
+                t.InvokeMember("IconLocation", BindingFlags.SetProperty, null, shortcut, new object[] { exe + ",0" });
+                t.InvokeMember("Save", BindingFlags.InvokeMethod, null, shortcut, null);
+            }
+            catch (Exception) { } // no Start menu entry is not worth failing startup over
+            finally
+            {
+                if (shortcut != null) Marshal.FinalReleaseComObject(shortcut);
+                if (shell != null) Marshal.FinalReleaseComObject(shell);
             }
         }
 
@@ -218,26 +259,15 @@ namespace DeskWidgets
             ExitThread();
         }
 
-        static Icon MakeTrayIcon()
+        // The app icon is embedded by build.bat (assets\app.ico).
+        static Icon LoadIcon(Size size)
         {
-            int s = 32;
-            using (var bmp = new Bitmap(s, s))
-            using (var g = Graphics.FromImage(bmp))
-            {
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.FillEllipse(Brushes.White, 1, 1, s - 2, s - 2);
-                using (var pen = new Pen(Color.FromArgb(28, 28, 30), 3f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
-                {
-                    g.DrawEllipse(pen, 2.5f, 2.5f, s - 5, s - 5);
-                    g.DrawLine(pen, s / 2f, s / 2f, s / 2f, 8);
-                    g.DrawLine(pen, s / 2f, s / 2f, s - 10, s / 2f);
-                }
-                return Icon.FromHandle(bmp.GetHicon());
-            }
+            using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("DeskWidgets.app.ico"))
+                return size.IsEmpty ? new Icon(stream) : new Icon(stream, size);
         }
 
-        // Hidden top-level window: hears the "TaskbarCreated" broadcast after Explorer restarts,
-        // and brings "open the library" requests from other threads onto the UI thread.
+        // Hidden top-level window: owns popup menus, hears the "TaskbarCreated" broadcast after
+        // Explorer restarts, and brings "open the window" requests from other threads to the UI thread.
         sealed class MessageWindow : NativeWindow
         {
             const int WM_OPEN_LIBRARY = 0x8001; // WM_APP + 1
@@ -260,6 +290,9 @@ namespace DeskWidgets
             {
                 if (m.Msg == taskbarCreated) onExplorerRestart();
                 else if (m.Msg == WM_OPEN_LIBRARY) onOpenLibrary();
+                else if (m.Msg == Native.WM_SETTINGCHANGE && m.LParam != IntPtr.Zero &&
+                         Marshal.PtrToStringUni(m.LParam) == "ImmersiveColorSet")
+                    Native.RefreshMenuTheme(); // Windows light/dark switch: menus follow
                 base.WndProc(ref m);
             }
         }

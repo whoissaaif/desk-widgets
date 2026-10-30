@@ -64,6 +64,54 @@ namespace DeskWidgets
 
         [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
+        // ---- native popup menus ----
+        public const uint MIIM_STATE = 0x1, MIIM_ID = 0x2, MIIM_SUBMENU = 0x4, MIIM_STRING = 0x40, MIIM_FTYPE = 0x100;
+        public const uint MFT_SEPARATOR = 0x800, MFT_RADIOCHECK = 0x200;
+        public const uint MFS_CHECKED = 0x8, MFS_DEFAULT = 0x1000;
+        public const uint TPM_RIGHTBUTTON = 0x2, TPM_NONOTIFY = 0x80, TPM_RETURNCMD = 0x100;
+        public const int WM_NULL = 0, WM_SETTINGCHANGE = 0x1A;
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct MENUITEMINFO
+        {
+            public uint cbSize, fMask, fType, fState, wID;
+            public IntPtr hSubMenu, hbmpChecked, hbmpUnchecked, dwItemData;
+            public string dwTypeData;
+            public uint cch;
+            public IntPtr hbmpItem;
+        }
+
+        [DllImport("user32.dll")] public static extern IntPtr CreatePopupMenu();
+        [DllImport("user32.dll")] public static extern bool DestroyMenu(IntPtr hMenu);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern bool InsertMenuItem(IntPtr hMenu, uint item, bool byPosition, ref MENUITEMINFO mii);
+        [DllImport("user32.dll")]
+        public static extern int TrackPopupMenuEx(IntPtr hMenu, uint flags, int x, int y, IntPtr hwnd, IntPtr tpm);
+        [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        // Undocumented-but-stable uxtheme exports (Windows 10 1903+) that make Win32 menus follow
+        // the system light/dark app theme, exactly like Explorer's menus. Silently skipped elsewhere.
+        [DllImport("uxtheme.dll", EntryPoint = "#133")] static extern bool AllowDarkModeForWindow(IntPtr hwnd, bool allow);
+        [DllImport("uxtheme.dll", EntryPoint = "#135")] static extern int SetPreferredAppMode(int mode);
+        [DllImport("uxtheme.dll", EntryPoint = "#136")] static extern void FlushMenuThemes();
+
+        public static void FollowSystemThemeForMenus(IntPtr ownerHwnd)
+        {
+            try
+            {
+                SetPreferredAppMode(1); // AllowDark
+                AllowDarkModeForWindow(ownerHwnd, true);
+                FlushMenuThemes();
+            }
+            catch (EntryPointNotFoundException) { }
+        }
+
+        public static void RefreshMenuTheme()
+        {
+            try { FlushMenuThemes(); }
+            catch (EntryPointNotFoundException) { }
+        }
+
         [DllImport("gdi32.dll")] public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
         [DllImport("gdi32.dll")] public static extern bool DeleteDC(IntPtr hdc);
         [DllImport("gdi32.dll")] public static extern IntPtr SelectObject(IntPtr hdc, IntPtr obj);

@@ -15,7 +15,6 @@ namespace DeskWidgets
 
         public readonly Section Settings;
         readonly Timer timer = new Timer();
-        readonly ContextMenuStrip menu = new ContextMenuStrip();
         LayeredSurface surface;
         bool paused;
 
@@ -28,24 +27,6 @@ namespace DeskWidgets
             StartPosition = FormStartPosition.Manual;
             AutoScaleMode = AutoScaleMode.None;
             timer.Tick += delegate { timer.Stop(); Render(); };
-            menu.Opening += delegate(object s, System.ComponentModel.CancelEventArgs e)
-            {
-                menu.Items.Clear();
-                BuildMenu(menu.Items);
-                if (menu.Items.Count > 0) menu.Items.Add(new ToolStripSeparator());
-                menu.Items.Add(Choice("Lock position", Locked, delegate { Settings.Set("locked", !Locked); }));
-                var opacity = new ToolStripMenuItem("Opacity");
-                foreach (int pct in new[] { 100, 85, 70, 50 })
-                {
-                    int p = pct;
-                    opacity.DropDownItems.Add(Choice(p + "%", OpacityPercent == p, delegate { Settings.Set("opacity", p); Render(); }));
-                }
-                menu.Items.Add(opacity);
-                menu.Items.Add("Remove this widget", null, delegate { App.Current.RemoveWidget(this); });
-                menu.Items.Add(new ToolStripSeparator());
-                App.Current.FillAppMenu(menu.Items);
-                e.Cancel = false;
-            };
         }
 
         // ---- to implement ----
@@ -53,14 +34,24 @@ namespace DeskWidgets
         protected abstract void Draw(Graphics g);
         // ms until the next frame is needed, or -1 to only redraw on demand.
         protected virtual int NextFrameDelay() { return -1; }
-        protected virtual void BuildMenu(ToolStripItemCollection items) { }
+        protected virtual void BuildMenu(PopupMenu menu) { }
 
-        // ---- helpers for subclasses ----
-        protected static ToolStripMenuItem Choice(string text, bool isChecked, EventHandler onClick)
+        void ShowMenu()
         {
-            var item = new ToolStripMenuItem(text, null, onClick);
-            item.Checked = isChecked;
-            return item;
+            var menu = new PopupMenu();
+            BuildMenu(menu);
+            menu.AddSeparator();
+            menu.AddCheck("Lock position", Locked, delegate { Settings.Set("locked", !Locked); });
+            var opacity = menu.AddSubmenu("Opacity");
+            foreach (int pct in new[] { 100, 85, 70, 50 })
+            {
+                int p = pct;
+                opacity.AddChoice(p + "%", OpacityPercent == p, delegate { Settings.Set("opacity", p); Render(); });
+            }
+            menu.Add("Remove this widget", delegate { App.Current.RemoveWidget(this); });
+            menu.AddSeparator();
+            App.Current.FillAppMenu(menu);
+            menu.Show(Cursor.Position);
         }
 
         protected bool Locked { get { return Settings.GetBool("locked", false); } }
@@ -207,7 +198,7 @@ namespace DeskWidgets
         protected override void OnMouseUp(MouseEventArgs e)
         {
             base.OnMouseUp(e);
-            if (e.Button == MouseButtons.Right) menu.Show(Cursor.Position);
+            if (e.Button == MouseButtons.Right) ShowMenu();
         }
 
         protected override void OnPaintBackground(PaintEventArgs e) { }
@@ -217,7 +208,6 @@ namespace DeskWidgets
             if (disposing)
             {
                 timer.Dispose();
-                menu.Dispose();
                 if (surface != null) { surface.Dispose(); surface = null; }
             }
             base.Dispose(disposing);
