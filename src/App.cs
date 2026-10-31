@@ -127,6 +127,7 @@ namespace DeskWidgets
             };
 
             LoadAppTheme();
+            ApplyProcessPriority(HighPriority);
             // Never touch the autostart entry on launch: it only changes when the user toggles it.
             EnsureStartMenuShortcut();
             EnsureUrlProtocol();
@@ -457,22 +458,58 @@ namespace DeskWidgets
 
         static string RunCommand { get { return "\"" + Application.ExecutablePath + "\" --background"; } }
 
-        // On only if the entry starts this exe (an entry left by a moved or other copy shows as off).
+        // On only if the entry starts this exe (registry Run key or scheduled task).
         public static bool StartWithWindows
         {
             get
             {
                 using (var k = Registry.CurrentUser.OpenSubKey(RunKey))
-                    return k != null && string.Equals(k.GetValue(RunName) as string, RunCommand, StringComparison.OrdinalIgnoreCase);
+                    if (k != null && string.Equals(k.GetValue(RunName) as string, RunCommand, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                return HasScheduledTask();
             }
             set
             {
+                SetAutostart(value, Current != null && Current.HighPriority);
+            }
+        }
+
+        static void SetAutostart(bool enabled, bool highPriority)
+        {
+            // Clear both mechanisms.
+            try { using (var k = Registry.CurrentUser.CreateSubKey(RunKey)) k.DeleteValue(RunName, false); }
+            catch (Exception) { }
+            if (Current != null) Current.DeleteScheduledTask();
+
+            if (!enabled) return;
+
+            if (highPriority)
+                Current.CreateScheduledTask();
+            else
                 using (var k = Registry.CurrentUser.CreateSubKey(RunKey))
+                    k.SetValue(RunName, RunCommand);
+        }
+
+        static bool HasScheduledTask()
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo("schtasks.exe",
+                    "/query /tn \"" + TaskName + "\"")
                 {
-                    if (value) k.SetValue(RunName, RunCommand);
-                    else k.DeleteValue(RunName, false);
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+                };
+                using (var p = System.Diagnostics.Process.Start(psi))
+                {
+                    p.StandardOutput.ReadToEnd();
+                    p.WaitForExit(3000);
+                    return p.ExitCode == 0;
                 }
             }
+            catch (Exception) { return false; }
         }
 
         // Start menu entry (so the app is searchable). Created when missing, or when the exe it
@@ -595,6 +632,100 @@ namespace DeskWidgets
                 string name = value == AppTheme.Light ? "light" : value == AppTheme.Dark ? "dark" : "system";
                 AppSection.Set("appearance", name);
             }
+        }
+
+        // High Priority: uses Task Scheduler (priority 4 = Above Normal) instead of the Run registry
+        // so the app starts earlier and faster at logon, and raises the process priority while running.
+        const string TaskName = "DeskWidgets";
+
+        public bool HighPriority
+        {
+            get { return AppSection.GetBool("high_priority", false); }
+            set
+            {
+                AppSection.Set("high_priority", value);
+                ApplyProcessPriority(value);
+                SyncAutostart();
+            }
+        }
+
+        void ApplyProcessPriority(bool high)
+        {
+            try
+            {
+                System.Diagnostics.Process.GetCurrentProcess().PriorityClass =
+                    high ? System.Diagnostics.ProcessPriorityClass.AboveNormal
+                         : System.Diagnostics.ProcessPriorityClass.Normal;
+            }
+            catch (Exception) { }
+        }
+
+        // Re-applies autostart with the current high-priority preference.
+        void SyncAutostart()
+        {
+            if (StartWithWindows)
+                SetAutostart(true, HighPriority);
+        }
+
+        void CreateScheduledTask()
+        {
+            try
+            {
+                string exe = Application.ExecutablePath;
+                string xml =
+                    "<?xml version=\"1.0\" encoding=\"UTF-16\"?>\r\n" +
+                    "<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">\r\n" +
+                    "  <Triggers>\r\n" +
+                    "    <LogonTrigger><Enabled>true</Enabled></LogonTrigger>\r\n" +
+                    "  </Triggers>\r\n" +
+                    "  <Principals>\r\n" +
+                    "    <Principal><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal>\r\n" +
+                    "  </Principals>\r\n" +
+                    "  <Settings>\r\n" +
+                    "    <Priority>4</Priority>\r\n" +
+                    "    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>\r\n" +
+                    "    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>\r\n" +
+                    "    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>\r\n" +
+                    "  </Settings>\r\n" +
+                    "  <Actions>\r\n" +
+                    "    <Exec>\r\n" +
+                    "      <Command>" + System.Security.SecurityElement.Escape(exe) + "</Command>\r\n" +
+                    "      <Arguments>--background</Arguments>\r\n" +
+                    "      <WorkingDirectory>" + System.Security.SecurityElement.Escape(Path.GetDirectoryName(exe)) + "</WorkingDirectory>\r\n" +
+                    "    </Exec>\r\n" +
+                    "  </Actions>\r\n" +
+                    "</Task>";
+                string tmp = Path.Combine(Path.GetTempPath(), "DeskWidgets_task.xml");
+                File.WriteAllText(tmp, xml, System.Text.Encoding.Unicode);
+                var psi = new System.Diagnostics.ProcessStartInfo("schtasks.exe",
+                    "/create /tn \"" + TaskName + "\" /xml \"" + tmp + "\" /f")
+                {
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+                };
+                using (var p = System.Diagnostics.Process.Start(psi))
+                    p.WaitForExit(5000);
+                try { File.Delete(tmp); } catch (Exception) { }
+            }
+            catch (Exception) { }
+        }
+
+        void DeleteScheduledTask()
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo("schtasks.exe",
+                    "/delete /tn \"" + TaskName + "\" /f")
+                {
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+                };
+                using (var p = System.Diagnostics.Process.Start(psi))
+                    p.WaitForExit(5000);
+            }
+            catch (Exception) { }
         }
 
         // ---- uninstall the app itself ----

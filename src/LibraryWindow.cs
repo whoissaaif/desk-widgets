@@ -36,7 +36,7 @@ namespace DeskWidgets
         readonly List<PluginRow> turnedOff = new List<PluginRow>();
         readonly List<SidebarItem> nav = new List<SidebarItem>();
         readonly SidebarItem settings, account;
-        SidebarItem startupToggle;
+        SidebarItem startupToggle, highPriorityToggle;
         Label settingsAppearanceLabel;
         SidebarItem[] themeItems;
         PillButton uninstallButton;
@@ -249,6 +249,7 @@ namespace DeskWidgets
 
             // Settings page controls.
             startupToggle.Visible = settingsOpen;
+            highPriorityToggle.Visible = settingsOpen;
             settingsAppearanceLabel.Visible = settingsOpen;
             uninstallButton.Visible = settingsOpen;
             foreach (var t in themeItems) t.Visible = settingsOpen;
@@ -336,6 +337,15 @@ namespace DeskWidgets
             };
             content.Controls.Add(startupToggle);
 
+            highPriorityToggle = new SidebarItem('', "High Priority") { Toggle = true, On = App.Current.HighPriority };
+            highPriorityToggle.Click += delegate
+            {
+                App.Current.HighPriority = !App.Current.HighPriority;
+                highPriorityToggle.On = App.Current.HighPriority;
+                highPriorityToggle.Invalidate();
+            };
+            content.Controls.Add(highPriorityToggle);
+
             settingsAppearanceLabel = new Label { Text = "Appearance", Font = Theme.CaptionEmphasized, ForeColor = Theme.Label2, AutoSize = true };
             content.Controls.Add(settingsAppearanceLabel);
 
@@ -372,6 +382,8 @@ namespace DeskWidgets
             int rowW = Math.Min(width, Px(500));
 
             startupToggle.SetBounds(pad, y, rowW, Px(44));
+            y += Px(44);
+            highPriorityToggle.SetBounds(pad, y, rowW, Px(44));
             y += Px(44) + Px(24);
 
             settingsAppearanceLabel.Location = new Point(pad, y);
