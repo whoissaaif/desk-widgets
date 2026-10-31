@@ -13,3 +13,6 @@ graphify-out/
 
 # server tests
 node_modules/
+
+# scratch / debug
+bugs and glitches/

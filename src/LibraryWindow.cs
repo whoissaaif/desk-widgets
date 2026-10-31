@@ -355,7 +355,7 @@ namespace DeskWidgets
                             content.Controls.Add(c);
                         }
                     }
-                    if (page == ExplorePage) LayoutContent();
+                    LayoutContent();
                 });
             });
         }
