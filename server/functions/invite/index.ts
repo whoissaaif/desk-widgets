@@ -10,6 +10,17 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// The project's secret key: SUPABASE_SECRET_KEYS (a JSON dictionary, "default" first) on current
+// projects; the deprecated SUPABASE_SERVICE_ROLE_KEY only where the new keys don't exist yet.
+function serviceKey(): string {
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}") as Record<string, string>;
+    const key = keys.default ?? Object.values(keys)[0];
+    if (key) return key;
+  } catch { /* fall through to the legacy key */ }
+  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+}
+
 function reply(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 }
@@ -19,7 +30,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return reply(405, { error: "Use POST." });
 
   const url = Deno.env.get("SUPABASE_URL")!;
-  const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+  const admin = createClient(url, serviceKey(), { auth: { persistSession: false } });
 
   // Who is calling: their own access token, verified by Supabase Auth.
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");

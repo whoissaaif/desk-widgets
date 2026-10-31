@@ -250,7 +250,99 @@ namespace DeskWidgets.Widgets
             var fmt = align == StringAlignment.Far ? TypoRight : align == StringAlignment.Center ? TypoCenter : Typo;
             float left = align == StringAlignment.Far ? x - maxWidth : align == StringAlignment.Center ? x - maxWidth / 2 : x;
             using (var b = new SolidBrush(c))
-                g.DrawString(s, f, b, new RectangleF(left, y, maxWidth, f.GetHeight() * 1.3f), fmt);
+            {
+                if (HasEmoji(s)) LabelWithEmoji(g, s, f, b, left, y, maxWidth, align);
+                else g.DrawString(s, f, b, new RectangleF(left, y, maxWidth, f.GetHeight() * 1.3f), fmt);
+            }
+        }
+
+        // ---- emoji (calendar titles, reminders): GDI+ has no font fallback, so Segoe UI draws them as
+        // boxes. Emoji runs are drawn in Segoe UI Emoji (single-color glyphs in the text color), on the
+        // same baseline as the text around them.
+
+        static bool IsEmojiAt(string s, int i)
+        {
+            char ch = s[i];
+            if (char.IsHighSurrogate(ch)) return true; // everything beyond U+FFFF that people type is emoji
+            return (ch >= 0x2300 && ch <= 0x23FF) || (ch >= 0x2600 && ch <= 0x27BF) || (ch >= 0x2B00 && ch <= 0x2BFF) ||
+                   ch == 0x3030 || ch == 0x303D || ch == 0x3297 || ch == 0x3299;
+        }
+
+        // Joiners and presentation selectors only shape color emoji; drawn on their own they're boxes.
+        static bool IsEmojiFormat(char ch) { return ch == 0x200D || ch == 0xFE0E || ch == 0xFE0F || ch == 0x20E3; }
+
+        static bool HasEmoji(string s)
+        {
+            if (s == null) return false;
+            for (int i = 0; i < s.Length; i++) if (IsEmojiAt(s, i) || IsEmojiFormat(s[i])) return true;
+            return false;
+        }
+
+        Font emojiFont;
+
+        Font EmojiFont(Font like)
+        {
+            if (emojiFont == null || emojiFont.Size != like.Size)
+            {
+                if (emojiFont != null) emojiFont.Dispose();
+                emojiFont = new Font("Segoe UI Emoji", like.Size, FontStyle.Regular, GraphicsUnit.Pixel);
+            }
+            return emojiFont;
+        }
+
+        // Runs sit side by side, so a run's trailing space must count ("Call mum " + bell).
+        static readonly StringFormat RunFormat = MakeRunFormat();
+
+        static StringFormat MakeRunFormat()
+        {
+            var f = (StringFormat)StringFormat.GenericTypographic.Clone();
+            f.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces | StringFormatFlags.NoWrap;
+            return f;
+        }
+
+        static float Ascent(Font f)
+        {
+            return f.Size * f.FontFamily.GetCellAscent(f.Style) / f.FontFamily.GetEmHeight(f.Style);
+        }
+
+        void LabelWithEmoji(Graphics g, string s, Font f, Brush b, float left, float y, float maxWidth, StringAlignment align)
+        {
+            Font emoji = EmojiFont(f);
+            // Split into runs of text and emoji, dropping the invisible shaping characters.
+            var runs = new List<KeyValuePair<string, bool>>();
+            var cur = new System.Text.StringBuilder();
+            bool curEmoji = false;
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (IsEmojiFormat(s[i])) continue;
+                bool e = IsEmojiAt(s, i);
+                int len = char.IsHighSurrogate(s[i]) && i + 1 < s.Length ? 2 : 1;
+                if (cur.Length > 0 && e != curEmoji) { runs.Add(new KeyValuePair<string, bool>(cur.ToString(), curEmoji)); cur.Clear(); }
+                curEmoji = e;
+                cur.Append(s, i, len);
+                i += len - 1;
+            }
+            if (cur.Length > 0) runs.Add(new KeyValuePair<string, bool>(cur.ToString(), curEmoji));
+
+            Func<KeyValuePair<string, bool>, float> width = r =>
+                g.MeasureString(r.Key, r.Value ? emoji : f, PointF.Empty, RunFormat).Width;
+            float total = 0;
+            foreach (var r in runs) total += width(r);
+            float x = left;
+            if (total <= maxWidth && align == StringAlignment.Far) x = left + maxWidth - total;
+            else if (total <= maxWidth && align == StringAlignment.Center) x = left + (maxWidth - total) / 2;
+
+            float baseline = y + Ascent(f), right = left + maxWidth;
+            foreach (var r in runs)
+            {
+                Font font = r.Value ? emoji : f;
+                float w = width(r), top = baseline - Ascent(font);
+                if (x + w <= right) { g.DrawString(r.Key, font, b, x, top, RunFormat); x += w; continue; }
+                // Doesn't fit: text is cut with an ellipsis in the space left; an emoji is replaced by one.
+                if (!r.Value) g.DrawString(r.Key, f, b, new RectangleF(x, top, Math.Max(0, right - x), f.GetHeight() * 1.3f), Typo);
+                else g.DrawString("…", f, b, x, baseline - Ascent(f), StringFormat.GenericTypographic);
+                break;
+            }
         }
 
         protected void Label(Graphics g, string s, Font f, Color c, float x, float y)
@@ -304,6 +396,7 @@ namespace DeskWidgets.Widgets
             {
                 foreach (var f in fonts.Values) f.Dispose();
                 fonts.Clear();
+                if (emojiFont != null) { emojiFont.Dispose(); emojiFont = null; }
                 if (backdrop != null) { backdrop.Dispose(); backdrop = null; }
             }
             base.Dispose(disposing);
