@@ -1,0 +1,42 @@
+name: Bug report
+description: Something in the app or on the website doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options: [The app, A built-in widget, A community widget, The website, Uploading or my account]
+    validations:
+      required: true
+  - type: input
+    id: widget
+    attributes:
+      label: Widget
+      description: Which widget, if it's about one (for community widgets, its id, like u.name.moon-phase).
+  - type: input
+    id: version
+    attributes:
+      label: Desk Widgets version
+      description: The release you downloaded (for example v1.0.0), or "built from source" with the commit.
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Settings › System › About, for example "Windows 11 24H2".
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or anything else
+      description: Never paste tokens, passwords or private calendar links.

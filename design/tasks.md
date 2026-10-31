@@ -79,6 +79,19 @@ Blocker found: the repo is private, and on a free GitHub account Pages only serv
 - [ ] **Claude:** right-click test on a community widget that sits on the desktop (its own menu
       items, e.g. Hello's "Say Hi"); blocked last time by an app window covering it
 
+## 5. Accounts, landing page, repo (branch `accounts-and-landing`)
+
+- [x] **Claude:** Download starts the latest exe (`releases/latest/download/DeskWidgets.exe`)
+- [x] **Claude:** request access by email (Upload page) › Accept/Reject on the admin page › invite
+      email › `account.html` (username, password, bio, photo) › sign in with username and password
+      (`login.html`, `functions/login`); profile menu and Admin link in the nav; toasts confirm
+- [x] **Claude:** app: sign in (sidebar account row), Upload a Widget… sheet, "Upload to the
+      Gallery…" on installed-from-file widgets, Explore marks installed widgets
+- [x] **Claude:** landing page (`index.html`; the gallery moved to `explore.html`), README,
+      templates, CI, CONTRIBUTING, SECURITY; schema tests 68/68
+- [ ] **Deploy:** run `server/schema.sql`, redeploy `invite`, deploy `login` with Verify JWT off
+- [ ] **Release:** v1.1.0 with the new exe (the app's sign-in needs it)
+
 ## Done (for reference)
 
 - Apple design language everywhere; `DESIGN.md` retired; menus app-drawn (section 17)
