@@ -4,23 +4,19 @@ What's next after the Apple redesign and community widgets (steps 1 to 5 of
 `design/community-plan.md` are built and tested). In order. **You** = needs your accounts or a
 decision; **Claude** = can be done in a session.
 
-## 1. Commit today's work (do first)
+## 1. Commit today's work
 
-Everything is uncommitted, and `CLAUDE.md` was already rolled back once (OneDrive or another
-session). Another session (F1 widgets) works in the same folder; its files go in its own commits.
+Done on branch `community-widgets` (`main` is untouched), four commits:
+app (design system, menus, plugins, app online), server, website, design docs. The app
+changes share files, so they're one commit rather than seven; each commit builds.
 
-- [ ] **Claude:** create a branch (e.g. `community-widgets`) and commit in pieces:
-  - [ ] Design system: `design/apple-design.md` (section 17), `CLAUDE.md`, `src/Theme.cs`,
-        `src/Controls.cs`, the mockup accent in `design/essential-widgets.html`, `README.md`
-  - [ ] Menus: `src/PopupMenu.cs` (app-drawn Apple menus), menu label changes in widgets
-  - [ ] App UI: `src/LibraryWindow.cs`, `src/AlertDialog.cs`, `src/InputDialog.cs`
-  - [ ] Local plugins: `src/PluginApi.cs`, `src/Plugins.cs`, `src/WidgetRegistry.cs`,
-        visibility changes, `samples/HelloWidget.cs`
-  - [ ] Server: `server/` (schema, invite function, tests)
-  - [ ] Website: `docs/`
-  - [ ] App online: `src/Community.cs`, URL protocol and hand-off in `src/App.cs`
-- [ ] **Claude:** leave F1 files (`src/Widgets/F1*.cs`, `design/f1-widget.html`, its
-      `CardWidget` / `WidgetRegistry` / `Http.cs` changes) to the F1 session
+- [x] **Claude:** create the branch and commit (F1 work kept out; HEAD builds without it)
+- [ ] **You / F1 session:** commit the F1 work, still uncommitted on purpose: `src/Widgets/F1*.cs`,
+      `design/f1-widget.html`, and its changes in `src/WidgetRegistry.cs` (Sports, f1-hub,
+      f1-timing), `src/Widgets/CardWidget.cs` (`CardSize`, Large) and `src/Http.cs`
+      (`Get(url, bearer)`, `PostForm`). `git diff` on those three files shows only F1 lines.
+      The F1 session ended before it could be told.
+- [ ] **You:** merge `community-widgets` into `main` (or open a PR) when you're happy with it
 - [ ] **You:** check `CLAUDE.md` stays on the "right-click menus are app-drawn" version; if it
       reverts again, look at OneDrive version history or the other sessions
 
