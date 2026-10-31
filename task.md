@@ -22,11 +22,14 @@ changes share files, so they're one commit rather than seven; each commit builds
 
 ## 2. Security review before the repo goes public
 
-- [ ] **Claude:** scan the whole git history for secrets (tokens, keys, private calendar links,
-      `widgets.ini`)
-- [ ] **Claude:** review the trust chain: upload → approve (hash pinned) → `deskwidgets://` →
-      fetch → hash check → prompt → compile; plus RLS in `server/schema.sql`
-- [ ] **Claude:** confirm only the anon key appears anywhere public; the service key never
+- [x] **Claude:** review the branch (trust chain upload → approve → `deskwidgets://` → fetch →
+      hash check → prompt → compile, RLS, invite function, website XSS, paths, parsing, secrets in
+      the diff). One finding, fixed: hidden characters ("Trojan Source") could make reviewed code
+      run differently from how it looked. Refused in the database, upload page and app; shown as
+      markers in review views; the repo itself now has none (it had 26, written by tooling).
+- [ ] **Claude:** scan the *whole* git history for secrets (the branch review covered only this
+      branch's diff)
+- [ ] **Claude:** add the hidden-character scan as a repo check, so tooling can't reintroduce them
 
 ## 3. Make the community gallery live
 

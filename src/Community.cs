@@ -136,6 +136,8 @@ namespace DeskWidgets
                 return;
             }
             if (bytes.Length > Plugins.MaxSourceBytes) { AlertDialog.Show(name + " wasn't installed.", "Its code is too large."); return; }
+            string hidden = Plugins.HiddenCharacter(source); // the gallery refuses these too; don't rely on it
+            if (hidden != null) { AlertDialog.Show(name + " wasn't installed.", Plugins.HiddenMessage(hidden)); return; }
             if (api > PluginApi.Version)
             {
                 AlertDialog.Show(name + " needs a newer Desk Widgets.", "Update Desk Widgets, then try again.");

@@ -96,6 +96,13 @@ guarantee:
    C# compiler that ships with Windows (`CSharpCodeProvider`, same csc as build.bat).
 6. **Install always asks.** A native confirm dialog shows author, version and a "View source" button
    that shows the verified local text (not a web page). Cancel is the default button.
+7. **Source reads the way it compiles.** A hash proves code didn't change after review, not that
+   the reviewer saw what runs. Characters that make code display differently from how the C#
+   compiler reads it ("Trojan Source": lone CR, U+0085, U+2028, U+2029, invisible and bidi
+   characters) are refused by the database (`source_is_plain`), by the upload page and by the app
+   before compiling (`Plugins.HiddenCharacter`). Review views show any such character as a visible
+   ⟨U+XXXX⟩ marker, and the admin page can't approve it. Found by the security review on
+   2026-10-31.
 
 ## Plugin API (in the app)
 

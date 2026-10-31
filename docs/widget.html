@@ -10,7 +10,7 @@
   <main class="content section" id="page"></main>
 
   <script type="module">
-    import { nav, el, art, getButton, supabase, configured, categoryName, isValidId, notice, formatDate, installUrl } from "./assets/site.js";
+    import { nav, el, art, getButton, supabase, configured, categoryName, isValidId, notice, formatDate, installUrl, visibleSource } from "./assets/site.js";
 
     nav(null);
     const page = document.getElementById("page");
@@ -59,7 +59,7 @@
           fact("Needs", "API " + w.api_version, "Desk Widgets")),
         el("h2", { class: "block", id: "source" }, "Source"),
         el("p", { class: "t-reduced" }, "This is the code that runs on your PC. SHA-256 " + w.sha256),
-        el("pre", { class: "code" }, w.source),
+        el("pre", { class: "code" }, visibleSource(w.source)),
         el("h2", { class: "block" }, "Version history"),
         el("div", { class: "group" }, versions.map(v =>
           el("div", { class: "row" },

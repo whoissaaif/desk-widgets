@@ -171,6 +171,8 @@ namespace DeskWidgets
             catch (Exception) { return "Its source file is missing. Install it again."; }
             string hash = Sha256(source);
             if (p.Sha256 == null || hash != p.Sha256) return "Its code changed after it was reviewed, so it wasn't loaded.";
+            string hidden = HiddenCharacter(new UTF8Encoding(false).GetString(source));
+            if (hidden != null) return HiddenMessage(hidden) + " It wasn't loaded.";
 
             string dll = Path.Combine(p.VersionDir, "widget.dll"), keyPath = Path.Combine(p.VersionDir, "build.key");
             string key = hash + " " + ExeHash();
@@ -257,6 +259,39 @@ namespace DeskWidgets
         {
             if (exeHash == null) exeHash = Sha256(File.ReadAllBytes(HostPath));
             return exeHash;
+        }
+
+        // ---- source must read the way it compiles ----
+
+        // Characters that make code look different from what the compiler sees ("Trojan Source",
+        // CVE-2021-42574): line breaks only the compiler honors (lone CR, U+0085, U+2028, U+2029),
+        // invisible characters and bidi controls. A hash proves code didn't change after review, not
+        // that the reviewer saw what runs, so code containing any of these is never compiled. Same
+        // rule as source_is_plain (server/schema.sql) and hiddenCharacters (docs/assets/site.js).
+        public static bool IsHidden(string text, int i)
+        {
+            char c = text[i];
+            if (c == '\r') return i + 1 >= text.Length || text[i + 1] != '\n'; // CR only as part of CRLF
+            return (c < 0x20 && c != '\t' && c != '\n') || (c >= 0x7F && c <= 0x9F) ||
+                   (c >= 0x200B && c <= 0x200F) || c == 0x2028 || c == 0x2029 ||
+                   (c >= 0x202A && c <= 0x202E) || (c >= 0x2060 && c <= 0x2069) || c == 0xFEFF;
+        }
+
+        // The first hidden character as "U+2028 on line 3", or null when the text is plain.
+        public static string HiddenCharacter(string text)
+        {
+            int line = 1;
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (IsHidden(text, i)) return string.Format(CultureInfo.InvariantCulture, "U+{0:X4} on line {1}", (int)text[i], line);
+                if (text[i] == '\n') line++;
+            }
+            return null;
+        }
+
+        public static string HiddenMessage(string where)
+        {
+            return "Its code contains a hidden character (" + where + ") that can make code look different from what runs.";
         }
 
         public static string Sha256(byte[] data)
@@ -401,13 +436,16 @@ namespace DeskWidgets
             {
                 raw = File.ReadAllBytes(path);
                 if (raw.Length > MaxSourceBytes) throw new InvalidDataException("The file is larger than 512 KB.");
-                text = new UTF8Encoding(false, true).GetString(raw).TrimStart('﻿');
+                text = new UTF8Encoding(false, true).GetString(raw).TrimStart('\uFEFF');
             }
             catch (Exception e)
             {
                 AlertDialog.Show("This file can't be installed.", e is DecoderFallbackException ? "It isn't UTF-8 text." : e.Message);
                 return;
             }
+
+            string hidden = HiddenCharacter(text);
+            if (hidden != null) { AlertDialog.Show("This file can't be installed.", HiddenMessage(hidden)); return; }
 
             string file = Path.GetFileName(path), id = "u.local." + Slug(Path.GetFileNameWithoutExtension(path));
             PluginInfo old = Get(id);

@@ -14,7 +14,7 @@
   </main>
 
   <script type="module">
-    import { nav, el, notice, supabase, CATEGORIES, formatDate } from "./assets/site.js";
+    import { nav, el, notice, supabase, CATEGORIES, formatDate, hiddenCharacters } from "./assets/site.js";
     import { signedIn, signOutLink } from "./assets/account.js";
 
     nav("upload");
@@ -60,9 +60,12 @@
       const form = el("form", { class: "form", onsubmit: async e => {
           e.preventDefault();
           const fail = text => result.replaceChildren(notice(text, true));
-          const text = source.value.replace(/^﻿/, "");
+          const text = source.value.replace(/^\uFEFF/, "");
           if (new TextEncoder().encode(text).length > MAX_SOURCE) return fail("The source is larger than 512 KB.");
           if (!/\[\s*DeskWidget\b/.test(text)) return fail("The source needs one class marked [DeskWidget].");
+          const hidden = hiddenCharacters(text);
+          if (hidden.length) return fail("The source contains a hidden character (" + hidden[0].code + " on line " + hidden[0].line +
+            ") that can make code look different from what runs. Remove it and try again.");
           let preview = null;
           const png = previewFile.files[0];
           if (png) {

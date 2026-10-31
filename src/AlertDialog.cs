@@ -169,7 +169,7 @@ namespace DeskWidgets
             Padding = new Padding(WidgetWindow.Px(16), WidgetWindow.Px(12), 0, 0);
             var box = new TextBox
             {
-                Text = text.Replace("\r\n", "\n").Replace("\n", "\r\n"), ReadOnly = true, Multiline = true, WordWrap = false,
+                Text = Marked(text), ReadOnly = true, Multiline = true, WordWrap = false,
                 ScrollBars = ScrollBars.Both, BorderStyle = BorderStyle.None, Dock = DockStyle.Fill,
                 Font = Theme.Mono, BackColor = Theme.WindowBg, ForeColor = Theme.Label
             };
@@ -184,6 +184,21 @@ namespace DeskWidgets
         {
             base.OnHandleCreated(e);
             Theme.ApplyToWindow(Handle);
+        }
+
+        // Lines end with CRLF, as the text box needs; characters that would hide code (Plugins.IsHidden)
+        // show as a visible ⟨U+XXXX⟩ marker instead of doing what they'd otherwise do.
+        static string Marked(string text)
+        {
+            var sb = new System.Text.StringBuilder(text.Length + 64);
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+                if (Plugins.IsHidden(text, i)) sb.AppendFormat("⟨U+{0:X4}⟩", (int)c);
+                else if (c == '\n') sb.Append("\r\n");
+                else if (c != '\r') sb.Append(c); // the CR of a CRLF: the \n adds it back
+            }
+            return sb.ToString();
         }
 
         public static void ShowText(string name, string text)

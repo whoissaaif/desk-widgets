@@ -68,6 +68,26 @@ export function getButton(id, version, label = "Get") {
   return el("a", { class: "get", href: installUrl(id, version), "aria-label": label + " (opens Desk Widgets)" }, label);
 }
 
+// Characters that make code look different from what the C# compiler sees ("Trojan Source"):
+// line breaks only the compiler honors (lone CR, U+0085, U+2028, U+2029), invisible characters and
+// bidi controls. The browser wouldn't show them truthfully, so they're refused on upload, block
+// approval, and show as markers. Same rule as source_is_plain (server/schema.sql) and
+// Plugins.IsHidden (app).
+const HIDDEN = /\r(?!\n)|[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2069\uFEFF]/g;
+const marker = ch => "⟨U+" + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0") + "⟩";
+
+// [{ code: "U+2028", line: 3 }, ...] for every hidden character in the text.
+export function hiddenCharacters(text) {
+  const found = [];
+  for (const m of text.matchAll(HIDDEN)) {
+    found.push({ code: marker(m[0]).slice(1, -1), line: text.slice(0, m.index).split("\n").length });
+  }
+  return found;
+}
+
+// The text with every hidden character replaced by a visible marker (for display only).
+export const visibleSource = text => text.replace(HIDDEN, marker);
+
 export async function sha256Hex(text) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");

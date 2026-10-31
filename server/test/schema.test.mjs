@@ -126,5 +126,25 @@ check('nobody can make themselves admin', !ok(r), r.error);
 r = await as('owner', `select version, status from public.versions where widget_id = 'u.alice.moon' order by version`);
 check('admin sees all versions', ok(r) && r.rows.length === 2, r.error);
 
+// Source must read the way it compiles (Trojan Source): hidden line breaks, invisible and bidi
+// characters are refused by the database, whichever way they're uploaded.
+const hidden = {
+  'lone CR (the review-bypass exploit)': '// Harmless note\rSystem.Diagnostics.Process.Start("powershell", "-enc AAAA");',
+  'U+2028 line separator': '// note\u2028Evil();',
+  'U+2029 paragraph separator': '// note\u2029Evil();',
+  'U+0085 next line': '// note\u0085Evil();',
+  'U+202E bidi override': 'var s = "\u202Eevil";',
+  'U+2066 bidi isolate': '/* \u2066 */ Evil();',
+  'U+200B zero-width space': 'Ev\u200Bil();',
+  'U+FEFF inside the text': 'class A {}\uFEFF',
+  'other control character': 'class A {}\u0007',
+};
+for (const [what, src] of Object.entries(hidden)) {
+  r = await upload('alice', 'u.alice.moon', src);
+  check('refuses ' + what, !ok(r) && /versions_source_plain/.test(r.error), r.error || 'accepted');
+}
+r = await upload('alice', 'u.alice.moon', 'class A\r\n{\r\n\tint x; // é ☾ 日本\r\n}\n');
+check('accepts CRLF, LF, tab and Unicode text', ok(r), r.error);
+
 console.log(fails ? fails + ' FAILED' : 'all passed');
 process.exit(fails ? 1 : 0);

@@ -46,6 +46,20 @@ create table if not exists public.versions (
   check ((status = 'approved') = (sha256 is not null))
 );
 
+-- ---------------------------------------------------------------- source must read as it compiles
+-- Characters that make code look different from what the C# compiler sees ("Trojan Source",
+-- CVE-2021-42574): line breaks only the compiler honors (lone CR, U+0085, U+2028, U+2029),
+-- invisible characters and bidi controls. Widget code never needs them, so a version containing
+-- one is refused here, whatever route the upload takes. Same rule as Plugins.HiddenCharacter (app)
+-- and hiddenCharacters (website).
+create or replace function public.source_is_plain(s text) returns boolean
+language sql immutable set search_path = public as $$
+  select replace(s, E'\r\n', E'\n') !~ '[\x01-\x08\x0b-\x1f\x7f-\u009f\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2069\uFEFF]';
+$$;
+
+alter table public.versions drop constraint if exists versions_source_plain;
+alter table public.versions add constraint versions_source_plain check (public.source_is_plain(source));
+
 -- ---------------------------------------------------------------- helpers
 
 create or replace function public.is_admin() returns boolean
@@ -196,8 +210,9 @@ $$;
 
 revoke all on function public.approve(text, int, text), public.reject(text, int),
                        public.is_admin(), public.my_username(), public.owns_widget(text), public.has_approved(text),
-                       public.next_version() from public, anon, authenticated;
+                       public.next_version(), public.source_is_plain(text) from public, anon, authenticated;
 grant execute on function public.approve(text, int, text), public.reject(text, int) to authenticated;
 -- Policies run as the caller, so the roles that read need these helpers.
-grant execute on function public.is_admin(), public.my_username(), public.owns_widget(text), public.has_approved(text)
+grant execute on function public.is_admin(), public.my_username(), public.owns_widget(text), public.has_approved(text),
+  public.source_is_plain(text)
   to anon, authenticated;
