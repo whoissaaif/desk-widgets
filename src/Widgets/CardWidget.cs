@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace DeskWidgets.Widgets
 {
-    // Base for the Apple-style card widgets: small (170 x 170 pt) or medium (364 x 170 pt),
+    // Base for the Apple-style card widgets: small (170 x 170 pt), medium (364 x 170 pt) or large (364 x 382 pt),
     // 22 pt corner radius, 16 pt margins, dark / light / vibrant appearance, three sizes.
     // Subclasses lay out in points and call P() to convert; everything is drawn on demand.
     abstract class CardWidget : WidgetWindow
@@ -46,13 +46,17 @@ namespace DeskWidgets.Widgets
         static readonly int[] ScaleOptions = { 85, 100, 125 };
         static readonly string[] ScaleNames = { "Compact", "Standard", "Large" };
 
-        readonly bool medium;
+        protected enum CardSize { Small, Medium, Large }
+
+        readonly CardSize size;
         readonly Dictionary<string, Font> fonts = new Dictionary<string, Font>();
         float fontScale;
 
-        protected CardWidget(Section settings, bool medium) : base(settings)
+        protected CardWidget(Section settings, bool medium) : this(settings, medium ? CardSize.Medium : CardSize.Small) { }
+
+        protected CardWidget(Section settings, CardSize size) : base(settings)
         {
-            this.medium = medium;
+            this.size = size;
         }
 
         protected string Face { get { return Settings.Get("face", DefaultFace); } }
@@ -62,8 +66,8 @@ namespace DeskWidgets.Widgets
         protected Palette Pal { get { return IsVibrant ? VibrantPalette : Face == "light" ? LightPalette : DarkPalette; } }
         protected float Zoom { get { return Dpi * Settings.GetInt("scale", 100) / 100f; } }
         protected float P(float pt) { return pt * Zoom; }
-        protected float W { get { return P(medium ? 364 : 170); } }
-        protected float H { get { return P(170); } }
+        protected float W { get { return P(size == CardSize.Small ? 170 : 364); } }
+        protected float H { get { return P(size == CardSize.Large ? 382 : 170); } }
 
         protected override Size Measure()
         {

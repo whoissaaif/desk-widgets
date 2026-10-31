@@ -50,6 +50,7 @@ namespace DeskWidgets
             new WidgetCategory { Id = "system", Name = "System", Description = "What your PC is doing", Glyph = '\uE7F4' },
             new WidgetCategory { Id = "media", Name = "Media", Description = "Your pictures and what's playing", Glyph = '\uEB9F' },
             new WidgetCategory { Id = "developer", Name = "Developer", Description = "Your GitHub at a glance", Glyph = '\uE943' },
+            new WidgetCategory { Id = "sports", Name = "Sports", Description = "Formula 1 schedule, standings and timing", Glyph = '\uE7C1' },
         };
 
         static readonly WidgetType[] BuiltIn =
@@ -114,6 +115,16 @@ namespace DeskWidgets
             {
                 Id = "github", Category = "developer", Name = "GitHub", Description = "Profile, streak and contribution graph",
                 Create = s => new GitHubWidget(s)
+            },
+            new WidgetType
+            {
+                Id = "f1-hub", Category = "sports", Name = "F1 Race Hub", Description = "Next race, its sessions, a countdown and the standings",
+                Create = s => new F1HubWidget(s)
+            },
+            new WidgetType
+            {
+                Id = "f1-timing", Category = "sports", Name = "F1 Timing", Description = "Top five of the latest session, live with OpenF1",
+                Create = s => new F1TimingWidget(s)
             },
         };
 
