@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Profile · Desk Widgets</title>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <main class="content section" id="page"></main>
+
+  <script type="module">
+    import { nav, el, art, getButton, supabase, configured, categoryName, notice, avatar } from "./assets/site.js";
+
+    nav(null);
+    const page = document.getElementById("page");
+    const username = new URLSearchParams(location.search).get("user");
+
+    async function load() {
+      if (!username || !/^[a-z0-9-]{2,24}$/.test(username)) {
+        page.replaceChildren(notice("This link doesn't point to a profile.", true));
+        return;
+      }
+      if (!configured) { page.replaceChildren(notice("The community gallery isn't connected yet.")); return; }
+      try {
+        const db = await supabase();
+        const { data: author } = await db.from("authors").select("username, bio, avatar")
+          .eq("username", username).maybeSingle();
+        if (!author) {
+          page.replaceChildren(notice("This person doesn't have a profile.", true));
+          return;
+        }
+        const { data: widgets } = await db.from("explore").select("id, version, name, category, description, preview, author")
+          .eq("author", username).order("reviewed_at", { ascending: false });
+
+        document.title = author.username + " · Desk Widgets";
+
+        page.replaceChildren(
+          el("div", { class: "profile-header" },
+            avatar(author, 96),
+            el("div", {},
+              el("h1", { class: "t-large" }, author.username),
+              author.bio ? el("p", { class: "t-reduced", style: "margin: 0" }, author.bio) : null,
+              el("p", { class: "t-caption meta" },
+                (widgets || []).length ? (widgets.length + " widget" + (widgets.length !== 1 ? "s" : "")) : "No widgets yet"))),
+          (widgets || []).length
+            ? el("div", { class: "grid" }, widgets.map(w =>
+                el("article", { class: "tile" },
+                  el("a", { href: "widget.html?id=" + encodeURIComponent(w.id), "aria-label": w.name }, art(w.preview, w.name)),
+                  el("div", { class: "tile-row" },
+                    el("div", { class: "text" },
+                      el("a", { class: "name", href: "widget.html?id=" + encodeURIComponent(w.id), style: "color: inherit; display: block" }, w.name),
+                      el("div", { class: "by" }, categoryName(w.category))),
+                    getButton(w.id, w.version)))))
+            : el("p", { class: "t-reduced" }, "This person hasn't published any widgets yet."));
+      } catch {
+        page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true));
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

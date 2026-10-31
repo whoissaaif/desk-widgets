@@ -128,6 +128,7 @@ async function accountNav(host, current) {
     el("div", { class: "who" }, avatar(who.profile, 40),
       el("div", {}, el("div", { class: "t-headline" }, name), el("div", { class: "t-caption" }, who.admin ? "Owner" : "Signed in"))),
     who.profile ? item("upload.html#uploads", "Your Uploads") : null,
+    who.profile ? item("profile.html?user=" + encodeURIComponent(who.profile.username), "Your Profile") : null,
     item("account.html", who.profile ? "Edit Profile" : "Finish Setting Up"),
     who.admin ? item("admin.html", "Admin Console") : null,
     el("hr"),
@@ -221,4 +222,21 @@ export function notice(text, error = false) {
 
 export function formatDate(iso) {
   return iso ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
+}
+
+export function confirmDialog(title, message, action, onConfirm) {
+  const overlay = el("div", { class: "dialog-overlay" },
+    el("div", { class: "dialog" },
+      el("h3", {}, title),
+      el("p", {}, message),
+      el("div", { class: "actions" },
+        el("button", { class: "button grey small", type: "button", onclick: () => overlay.classList.remove("open") }, "Cancel"),
+        el("button", { class: "button destructive small", type: "button", onclick: async () => {
+          overlay.classList.remove("open");
+          await onConfirm();
+        } }, action))));
+  document.body.append(overlay);
+  requestAnimationFrame(() => overlay.classList.add("open"));
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.classList.remove("open"); });
+  return overlay;
 }

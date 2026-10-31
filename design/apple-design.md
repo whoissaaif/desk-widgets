@@ -768,7 +768,7 @@ text. One Primary per group.
 ### 17.8 Accounts
 - **App**: the account is the last row of the sidebar above "Start with Windows": your photo
   (22 px circle) and username, or the person glyph and "Sign In". Signed out, it opens the sign-in
-  sheet (Username, Password; "Request Access ↗" on the left). Signed in, it opens a menu: Upload a
+  sheet (Username, Password; "Request Access" on the left). Signed in, it opens a menu: Upload a
   Widget…, Your Uploads ↗, Edit Profile ↗, Admin Console ↗ (owner only), then Sign Out. Signing in
   ends with an alert that says so.
 - **Upload sheet**: the input sheet (17.5) with pop-up pickers for Widget and Category (a field

@@ -103,6 +103,8 @@ namespace DeskWidgets
         LibraryWindow library;
         readonly Control invoker = new Control(); // brings background results to the UI thread
         readonly System.Windows.Forms.Timer updateTimer = new System.Windows.Forms.Timer { Interval = 24 * 60 * 60 * 1000 };
+        FileSystemWatcher wallpaperWatcher;
+        readonly System.Windows.Forms.Timer wallpaperDebounce = new System.Windows.Forms.Timer { Interval = 150 };
 
         public App(EventWaitHandle showLibrary, bool openWindow, string url)
         {
@@ -129,6 +131,7 @@ namespace DeskWidgets
             SystemEvents.SessionSwitch += OnSessionSwitch;
             SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
             SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+            StartWallpaperWatcher();
             showLibraryWait = ThreadPool.RegisterWaitForSingleObject(showLibrary,
                 delegate { messageWindow.PostOpenLibrary(); }, null, Timeout.Infinite, false);
 
@@ -351,7 +354,7 @@ namespace DeskWidgets
             string[] v = InputDialog.Ask("Sign In to Desk Widgets",
                 problem ?? "Use the username and password you chose on the website when you accepted your invite.",
                 new[] { new InputDialog.Field { Label = "Username", Value = name }, new InputDialog.Field { Label = "Password", Secret = true } },
-                "Sign In", "Request Access ↗", d => OpenWebsite("upload.html#request"));
+                "Sign In", "Request Access", d => { d.Close(); RequestAccess(); });
             if (v == null) return;
             string user = v[0].Trim().ToLowerInvariant(), password = v[1];
             if (user.Length == 0 || password.Length == 0) { SignIn(user, "Type your username and password.", then); return; }
@@ -364,6 +367,36 @@ namespace DeskWidgets
                     if (error != null) { SignIn(user, error, then); return; }
                     AlertDialog.Show("You're signed in.", "Signed in as " + Account.Username + ". You can upload widgets from Explore.");
                     if (then != null) then();
+                });
+            });
+        }
+
+        static void RequestAccess()
+        {
+            if (!Community.Configured) { AlertDialog.Show("Uploads aren't connected yet.", "This copy of Desk Widgets doesn't know where the gallery is."); return; }
+            string[] v = InputDialog.Ask("Request Access",
+                "Enter your email. If the owner accepts, you'll get a link to set up your account.",
+                new[] { new InputDialog.Field { Label = "Email" } }, "Request Access");
+            if (v == null) return;
+            string email = v[0].Trim();
+            if (email.Length == 0) return;
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                string error = null;
+                try
+                {
+                    var headers = new Dictionary<string, string> { { "apikey", Community.AnonKey } };
+                    if (Community.AnonKey.StartsWith("eyJ")) headers["Authorization"] = "Bearer " + Community.AnonKey;
+                    Http.SendJson("POST", Community.Url + "/rest/v1/rpc/request_access", headers,
+                        new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(
+                            new Dictionary<string, string> { { "p_email", email } }));
+                }
+                catch (HttpError e) { error = e.Message; }
+                catch (Exception) { error = "The gallery couldn't be reached. Check your connection and try again."; }
+                RunOnUi(delegate
+                {
+                    if (error != null) AlertDialog.Show("Request wasn't sent.", error);
+                    else AlertDialog.Show("Request sent.", "If the owner accepts, you'll get an email with a link to set up your account.");
                 });
             });
         }
@@ -466,13 +499,47 @@ namespace DeskWidgets
         void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
         {
             if (e.Category != UserPreferenceCategory.Desktop) return;
+            RefreshBackdrop();
+        }
+
+        void RefreshBackdrop()
+        {
             DesktopBackdrop.Invalidate();
             foreach (var w in widgets) w.BackdropChanged();
+        }
+
+        // FileSystemWatcher on the Themes folder fires within ~100ms of a wallpaper change,
+        // much faster than the WM_SETTINGCHANGE broadcast that UserPreferenceChanged waits for.
+        void StartWallpaperWatcher()
+        {
+            wallpaperDebounce.Tick += delegate { wallpaperDebounce.Stop(); RefreshBackdrop(); };
+            string dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                @"Microsoft\Windows\Themes");
+            if (!Directory.Exists(dir)) return;
+            try
+            {
+                wallpaperWatcher = new FileSystemWatcher(dir, "TranscodedWallpaper")
+                {
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.CreationTime,
+                    EnableRaisingEvents = true
+                };
+                wallpaperWatcher.Changed += OnWallpaperFile;
+                wallpaperWatcher.Created += OnWallpaperFile;
+            }
+            catch (Exception) { }
+        }
+
+        void OnWallpaperFile(object sender, FileSystemEventArgs e)
+        {
+            RunOnUi(delegate { wallpaperDebounce.Stop(); wallpaperDebounce.Start(); });
         }
 
         void Exit()
         {
             if (library != null) library.Close();
+            if (wallpaperWatcher != null) { wallpaperWatcher.EnableRaisingEvents = false; wallpaperWatcher.Dispose(); }
+            wallpaperDebounce.Dispose();
             SystemEvents.SessionSwitch -= OnSessionSwitch;
             SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
             SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
