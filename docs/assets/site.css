@@ -218,6 +218,7 @@ textarea.input.short { min-height: 88px; font: 400 17px/1.3 var(--font-text); le
 .landing .footer { margin-top: 0; }
 .tile { padding: 56px 22px 64px; margin-bottom: 12px; text-align: center; overflow: hidden; }
 .tile.light, .tile.hero { background: var(--grey-bg); }
+.tile.hero { min-height: 100vh; box-sizing: border-box; justify-content: center; }
 .tile.dark { background: var(--tile-dark); color: var(--tile-dark-text); }
 .tile.dark .tile-sub { color: var(--tile-dark-text-2); }
 .tile.dark a.more { color: var(--tile-dark-link); }
