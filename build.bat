@@ -3,6 +3,9 @@ rem Builds bin\DeskWidgets.exe with the C# compiler that ships with Windows (.NE
 rem The Windows media session (Now playing) comes from the WinRT metadata in System32\WinMetadata,
 rem which every Windows 10/11 PC has.
 cd /d "%~dp0"
+rem No character that makes code read differently from how it compiles (tools\check-hidden.ps1).
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check-hidden.ps1
+if errorlevel 1 exit /b 1
 if not exist bin mkdir bin
 set FW=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319
 if not exist "%FW%\csc.exe" set FW=%WINDIR%\Microsoft.NET\Framework\v4.0.30319

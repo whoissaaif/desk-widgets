@@ -27,9 +27,16 @@ changes share files, so they're one commit rather than seven; each commit builds
       the diff). One finding, fixed: hidden characters ("Trojan Source") could make reviewed code
       run differently from how it looked. Refused in the database, upload page and app; shown as
       markers in review views; the repo itself now has none (it had 26, written by tooling).
-- [ ] **Claude:** scan the *whole* git history for secrets (the branch review covered only this
-      branch's diff)
-- [ ] **Claude:** add the hidden-character scan as a repo check, so tooling can't reintroduce them
+- [x] **Claude:** scan the whole git history for secrets: all 10 commits on every branch, added
+      and removed lines and messages, 11 token patterns (checked against fake tokens). No secrets,
+      no `widgets.ini` ever committed, no deleted files.
+- [ ] **You decide:** your personal Gmail address is the author of the very first commit
+      (`04749ba`); every later commit uses the GitHub no-reply address. It becomes public with the
+      repo. Removing it means rewriting history and force-pushing `main` (every commit id
+      changes). Alternative: leave it.
+- [x] **Claude:** hidden-character check as a repo check: `tools/check-hidden.ps1` runs in
+      `build.bat` and in the pre-commit hook (`.githooks/pre-commit`; each clone turns it on with
+      `git config core.hooksPath .githooks`, already on here)
 
 ## 3. Make the community gallery live
 

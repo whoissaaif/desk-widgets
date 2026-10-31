@@ -1,0 +1,4 @@
+#!/bin/sh
+# Refuses a commit that adds hidden characters that can make code read differently from how it runs.
+# Enabled per clone with: git config core.hooksPath .githooks
+exec powershell -NoProfile -ExecutionPolicy Bypass -File tools/check-hidden.ps1 -Staged

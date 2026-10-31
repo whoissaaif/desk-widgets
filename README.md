@@ -16,6 +16,14 @@ bin\DeskWidgets.exe
 The first run adds **Desk Widgets** to the Start menu (it's recreated if missing, or if the exe it
 pointed to was moved), so after that you can just search for it.
 
+`build.bat` first runs `tools\check-hidden.ps1`, which refuses characters that can make code read
+differently from how it runs (lone CR, U+2028, bidi and zero-width characters). To run the same
+check before every commit, turn on the repo's hooks once per clone:
+
+```
+git config core.hooksPath .githooks
+```
+
 ## Widgets
 
 | Category | Widget | Size | Notes |
