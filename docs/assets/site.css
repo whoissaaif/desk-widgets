@@ -186,7 +186,6 @@ textarea.input.short { min-height: 88px; font: 400 17px/1.3 var(--font-text); le
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 /* ---- landing page: full-bleed tiles with 12 px gutters, alternating light and dark (§2.1) ---- */
-.landing main { padding-top: 12px; }
 .landing .footer { margin-top: 0; }
 .tile { padding: 56px 22px 64px; margin-bottom: 12px; text-align: center; overflow: hidden; }
 .tile.light, .tile.hero { background: var(--grey-bg); }

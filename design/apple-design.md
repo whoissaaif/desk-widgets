@@ -782,6 +782,7 @@ text. One Primary per group.
 
 ### 17.9 Landing page
 `docs/index.html` follows the marketing homepage (§2.1): full-bleed tiles with 12 px gutters,
+gutters only between tiles (the hero sits flush under the nav, no gap above it),
 alternating grey and black, each with a centered headline, one line, actions and real widget
 renders (`docs/assets/img`, made from the widgets' own previews at 2×). Stats use the callout
 style (§2.2). The gallery itself is `explore.html`.
