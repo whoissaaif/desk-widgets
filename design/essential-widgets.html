@@ -13,7 +13,7 @@
   --ink: #f2f2f5;
   --muted: #a2a2ab;
   --line: #2d2d33;
-  --accent: #ff9f0a;
+  --accent: #2997ff; /* links and focus: Apple's blue on dark (apple-design.md §4.2) */
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
   --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   color-scheme: dark;
@@ -416,12 +416,7 @@ td .size { display: block; color: var(--muted); font-weight: 400; font-size: 12p
       <!-- 6 Photo frame (medium) -->
       <article class="w m photo" aria-label="Photo frame, sample pictures">
         <canvas id="photo" width="728" height="340" role="img" aria-label="Photo"></canvas>
-        <div class="shade"></div>
-        <div class="meta">
-          <div>
-            <div class="sub bold" id="photo-title">Evening tide</div>
-            <div class="cap fg2w" id="photo-sub">Pictures › Favorites · 1 of 3</div>
-          </div>
+        <div class="meta" style="justify-content:flex-end">
           <button class="wbtn next" type="button" id="photo-next" aria-label="Show the next photo"><svg class="ic"><use href="#i-next"/></svg></button>
         </div>
       </article>
@@ -511,7 +506,7 @@ td .size { display: block; color: var(--muted); font-weight: 400; font-size: 12p
     </section>
     <section class="legend" aria-labelledby="s-h">
       <h2 id="s-h">How each one gets built</h2>
-      <p class="muted">Everything runs in the one-process Desk Widgets app. Seven of the ten are built; Calendar, Weather and Now playing still need a data source.</p>
+      <p class="muted">Everything runs in the one-process Desk Widgets app. All ten are built, each with dark, light and vibrant appearances.</p>
       <div class="chips">
         <span class="chip built">Built</span>
         <span class="chip ready">Ready to build</span>
@@ -527,10 +522,10 @@ td .size { display: block; color: var(--muted); font-weight: 400; font-size: 12p
       </thead>
       <tbody>
         <tr><td class="n">Analog clock<span class="size">Small</span></td><td>Local or any city's time</td><td>Pick city, size, face, seconds hand</td><td>System clock and Windows time zones</td><td>1 s</td><td><span class="chip built">Built</span></td></tr>
-        <tr><td class="n">Calendar<span class="size">Medium</span></td><td>Today's date, the next events, the month</td><td>Open a day in your calendar</td><td>Month grid needs nothing; events from a calendar's ICS subscription link (Google, Outlook, iCloud)</td><td>Events every 15 min, date at midnight</td><td><span class="chip data">Needs a data source</span></td></tr>
-        <tr><td class="n">Weather<span class="size">Medium</span></td><td>Temperature, conditions, high and low, next six hours</td><td>Pick the place</td><td>Open-Meteo forecast API (free, no account)</td><td>15 min</td><td><span class="chip data">Needs a data source</span></td></tr>
+        <tr><td class="n">Calendar<span class="size">Medium</span></td><td>Today's date, the next events, the month</td><td>Open a day in your calendar</td><td>Month grid needs nothing; events from a calendar's ICS subscription link (Google, Outlook, iCloud)</td><td>Events every 15 min, date at midnight</td><td><span class="chip built">Built</span></td></tr>
+        <tr><td class="n">Weather<span class="size">Medium</span></td><td>Temperature, conditions, high and low, next six hours</td><td>Pick the place</td><td>Open-Meteo forecast API (free, no account)</td><td>15 min</td><td><span class="chip built">Built</span></td></tr>
         <tr><td class="n">System<span class="size">Small</span></td><td>CPU with one minute of history, memory, disk</td><td>Choose the drive</td><td>Windows performance counters</td><td>2 s</td><td><span class="chip built">Built</span></td></tr>
-        <tr><td class="n">Now playing<span class="size">Medium</span></td><td>Track, artist, art, progress</td><td>Play, pause, skip</td><td>The Windows media session that the volume flyout uses (works with Spotify, browsers, Media Player)</td><td>When the track changes, progress each second while playing</td><td><span class="chip data">Needs a data source</span></td></tr>
+        <tr><td class="n">Now playing<span class="size">Medium</span></td><td>Track, artist, art, progress</td><td>Play, pause, skip</td><td>The Windows media session that the volume flyout uses (works with Spotify, browsers, Media Player)</td><td>When the track changes, progress each second while playing</td><td><span class="chip built">Built</span></td></tr>
         <tr><td class="n">Photo frame<span class="size">Medium</span></td><td>One picture from a folder you choose, with its name</td><td>Pick the folder, skip to the next picture</td><td>Any local folder (Pictures by default); images are scaled once and cached, never kept full size in memory</td><td>1 hour, or on click</td><td><span class="chip built">Built</span></td></tr>
         <tr><td class="n">GitHub<span class="size">Medium</span></td><td>Your profile, current streak, the last 30 weeks of contributions, today's count</td><td>Open your profile</td><td>GitHub GraphQL API with a read-only token you add once (kept in Windows Credential Manager)</td><td>30 min</td><td><span class="chip built">Built</span></td></tr>
         <tr><td class="n">Focus timer<span class="size">Small</span></td><td>Time left as a ring</td><td>Start, pause, reset; set the length</td><td>Local</td><td>1 s while running, nothing while idle</td><td><span class="chip built">Built</span></td></tr>
@@ -752,8 +747,7 @@ td .size { display: block; color: var(--muted); font-weight: 400; font-size: 12p
     } else {
       ridge(0.78, 0.07, photoIdx * 2.3 + 4, ph.hills[1]);
     }
-    document.getElementById("photo-title").textContent = ph.title;
-    document.getElementById("photo-sub").textContent = "Pictures › Favorites · " + (photoIdx + 1) + " of " + photos.length;
+    cv.setAttribute("aria-label", "Photo: " + ph.title);
   }
   document.getElementById("photo-next").addEventListener("click", function () { photoIdx = (photoIdx + 1) % photos.length; drawPhoto(); });
   drawPhoto();
