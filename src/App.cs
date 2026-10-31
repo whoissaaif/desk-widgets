@@ -337,6 +337,59 @@ namespace DeskWidgets
                 if (pick.ShowDialog() == DialogResult.OK) Plugins.InstallFromFile(pick.FileName);
         }
 
+        // ---- the gallery account (Account) ----
+
+        // Asks for username and password until they work or the person cancels, then says so and
+        // runs then (on the UI thread). Network work happens off the UI thread.
+        public static void SignIn(Action then)
+        {
+            SignIn("", null, then);
+        }
+
+        static void SignIn(string name, string problem, Action then)
+        {
+            string[] v = InputDialog.Ask("Sign In to Desk Widgets",
+                problem ?? "Use the username and password you chose on the website when you accepted your invite.",
+                new[] { new InputDialog.Field { Label = "Username", Value = name }, new InputDialog.Field { Label = "Password", Secret = true } },
+                "Sign In", "Request Access ↗", d => OpenWebsite("upload.html#request"));
+            if (v == null) return;
+            string user = v[0].Trim().ToLowerInvariant(), password = v[1];
+            if (user.Length == 0 || password.Length == 0) { SignIn(user, "Type your username and password.", then); return; }
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                string error = Account.SignIn(user, password);
+                if (error == null) Account.LoadProfile();
+                RunOnUi(delegate
+                {
+                    if (error != null) { SignIn(user, error, then); return; }
+                    AlertDialog.Show("You're signed in.", "Signed in as " + Account.Username + ". You can upload widgets from Explore.");
+                    if (then != null) then();
+                });
+            });
+        }
+
+        // Upload a widget for review: a widget installed from a file (its source and a rendered
+        // preview), or a .cs file picked now. Signs in first if needed.
+        public static void UploadWidget(PluginInfo plugin)
+        {
+            if (!Community.Configured) { AlertDialog.Show("Uploads aren't connected yet.", "This copy of Desk Widgets doesn't know where the gallery is."); return; }
+            if (!Account.SignedIn) { SignIn(delegate { UploadWidget(plugin); }); return; }
+            string path = plugin != null ? plugin.SourcePath : null;
+            if (path == null)
+                using (var pick = new OpenFileDialog { Title = "Upload a Widget", Filter = "C# widget (*.cs)|*.cs" })
+                {
+                    if (pick.ShowDialog() != DialogResult.OK) return;
+                    path = pick.FileName;
+                }
+            UploadDialog.Run(path, plugin);
+        }
+
+        public static void OpenWebsite(string path)
+        {
+            try { System.Diagnostics.Process.Start(Community.Website + path); }
+            catch (Exception) { }
+        }
+
         public static void ConfirmUninstall(PluginInfo plugin)
         {
             if (AlertDialog.Confirm("Uninstall " + Plugins.DisplayName(plugin) + "?",
