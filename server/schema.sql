@@ -9,13 +9,36 @@
 --   * approve() recomputes sha256(source) in Postgres and refuses if it differs from the hash of
 --     the text the admin page rendered.
 --   * anon can read approved rows only, and nothing else.
+--
+-- Accounts: anyone can ask for access (request_access); the owner accepts a request on the admin
+-- page, which sends an invite email (functions/invite). The invitee then picks a username, password,
+-- bio and photo (docs/account.html) and from then on signs in with username and password
+-- (functions/login).
 
 -- ---------------------------------------------------------------- tables
 
 create table if not exists public.profiles (
   id         uuid primary key references auth.users (id) on delete cascade,
-  username   text not null unique check (username ~ '^[a-z0-9-]{2,24}$'),  -- immutable: no UPDATE grant
+  username   text not null unique check (username ~ '^[a-z0-9-]{2,24}$'),  -- immutable: no UPDATE grant on it
   created_at timestamptz not null default now()
+);
+
+-- Added after the first release, so they're columns of their own (create table above is a no-op then).
+alter table public.profiles add column if not exists bio text not null default '';
+alter table public.profiles add column if not exists avatar text;  -- base64 JPEG, about 192 px square
+alter table public.profiles drop constraint if exists profiles_bio_check;
+alter table public.profiles add constraint profiles_bio_check check (length(bio) <= 160);
+alter table public.profiles drop constraint if exists profiles_avatar_check;
+alter table public.profiles add constraint profiles_avatar_check
+  check (avatar is null or (length(avatar) <= 60000 and avatar ~ '^[A-Za-z0-9+/=]+$'));
+
+-- People asking to upload. Written only through request_access(); read and decided by the owner.
+create table if not exists public.access_requests (
+  id         bigint generated always as identity primary key,
+  email      text not null unique check (length(email) <= 254 and email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
+  status     text not null default 'pending' check (status in ('pending', 'accepted', 'rejected')),
+  created_at timestamptz not null default now(),
+  decided_at timestamptz
 );
 
 create table if not exists public.admins (
@@ -104,10 +127,25 @@ alter table public.profiles enable row level security;
 alter table public.admins   enable row level security;
 alter table public.widgets  enable row level security;
 alter table public.versions enable row level security;
+alter table public.access_requests enable row level security;
 
 drop policy if exists profiles_read on public.profiles;
 create policy profiles_read on public.profiles for select to authenticated
   using (id = auth.uid() or public.is_admin());
+
+-- Invited people create their own profile once (docs/account.html); signing up is off, so every
+-- account was invited. Afterwards only the bio and photo can change (see grants).
+drop policy if exists profiles_insert on public.profiles;
+create policy profiles_insert on public.profiles for insert to authenticated
+  with check (id = auth.uid());
+
+drop policy if exists profiles_update on public.profiles;
+create policy profiles_update on public.profiles for update to authenticated
+  using (id = auth.uid()) with check (id = auth.uid());
+
+drop policy if exists access_requests_read on public.access_requests;
+create policy access_requests_read on public.access_requests for select to authenticated
+  using (public.is_admin());
 
 drop policy if exists admins_read on public.admins;
 create policy admins_read on public.admins for select to authenticated
@@ -149,18 +187,20 @@ create policy versions_insert on public.versions for insert to authenticated
 -- Supabase grants everything on public tables to anon and authenticated by default. Take it back
 -- and hand out only what the policies above are for. No UPDATE or DELETE for anyone.
 
-revoke all on public.profiles, public.admins, public.widgets, public.versions from anon, authenticated;
+revoke all on public.profiles, public.admins, public.widgets, public.versions, public.access_requests from anon, authenticated;
 grant select on public.widgets, public.versions to anon, authenticated;
-grant select on public.profiles, public.admins to authenticated;
+grant select on public.profiles, public.admins, public.access_requests to authenticated;
+grant insert (id, username, bio, avatar) on public.profiles to authenticated;
+grant update (bio, avatar) on public.profiles to authenticated;
 grant insert (id, owner, slug) on public.widgets to authenticated;
 grant insert (widget_id, name, category, description, api_version, source, preview) on public.versions to authenticated;
 
 -- ---------------------------------------------------------------- public views (no account needed)
 -- Views run with their owner's rights (they bypass RLS), so each one filters to public data itself.
 
--- Authors by name only.
+-- Authors' public profile: name, bio and photo. Never their email.
 create or replace view public.authors as
-  select id, username from public.profiles;
+  select id, username, bio, avatar from public.profiles;
 
 -- The newest approved version of every widget, without its source: the Explore list.
 create or replace view public.explore as
@@ -207,6 +247,40 @@ begin
   if not found then raise exception 'no pending version % of %', p_version, p_widget; end if;
 end;
 $$;
+
+-- ---------------------------------------------------------------- access requests
+
+-- Anyone can ask. The answer is the same whether the address is new, already asked or already has
+-- an account, so it can't be used to find out who has one. A full queue stops taking requests.
+create or replace function public.request_access(p_email text) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_email text := lower(trim(p_email));
+begin
+  if v_email is null or length(v_email) > 254 or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+    raise exception 'That email address doesn''t look right.';
+  end if;
+  if (select count(*) from public.access_requests where status = 'pending') >= 200 then
+    raise exception 'Too many requests are waiting right now. Try again in a few days.';
+  end if;
+  insert into public.access_requests (email) values (v_email) on conflict (email) do nothing;
+end;
+$$;
+
+-- Accepting sends an email, which needs the service key: that's functions/invite. Rejecting doesn't.
+create or replace function public.reject_request(p_id bigint) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'not allowed'; end if;
+  update public.access_requests set status = 'rejected', decided_at = now()
+   where id = p_id and status = 'pending';
+  if not found then raise exception 'no pending request %', p_id; end if;
+end;
+$$;
+
+revoke all on function public.request_access(text), public.reject_request(bigint) from public, anon, authenticated;
+grant execute on function public.request_access(text) to anon, authenticated;
+grant execute on function public.reject_request(bigint) to authenticated;
 
 revoke all on function public.approve(text, int, text), public.reject(text, int),
                        public.is_admin(), public.my_username(), public.owns_widget(text), public.has_approved(text),
