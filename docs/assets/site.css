@@ -227,17 +227,19 @@ textarea.input.short { min-height: 88px; font: 400 17px/1.3 var(--font-text); le
 .availability { font: 400 17px/23px var(--font-text); color: var(--text-2); margin: 12px 0 0; }
 .actions.center { justify-content: center; gap: 24px; }
 .desk { display: grid; grid-template-columns: repeat(4, minmax(0, 170px)); gap: 24px; justify-content: center; margin: 56px auto 0; }
-.desk img, .pair img { width: 100%; height: auto; filter: drop-shadow(0 4px 12px rgba(0, 0, 0, .10)); }
-.desk img { opacity: 0; transform: translateY(16px); transition: opacity .4s ease-out, transform .4s ease-out; }
-.desk img:nth-child(1) { transition-delay: 0s; }
-.desk img:nth-child(2) { transition-delay: .06s; }
-.desk img:nth-child(3) { transition-delay: .12s; }
-.desk img:nth-child(4) { transition-delay: .18s; }
-.desk img:nth-child(5) { transition-delay: .24s; }
-.desk img:nth-child(6) { transition-delay: .30s; }
-.desk img:nth-child(7) { transition-delay: .36s; }
-.desk img:nth-child(8) { transition-delay: .42s; }
-.desk.in img { opacity: 1; transform: translateY(0); }
+.desk img, .desk canvas, .pair img, .pair canvas { width: 100%; height: auto; filter: drop-shadow(0 4px 12px rgba(0, 0, 0, .10)); }
+.desk canvas.small, .pair canvas.small { aspect-ratio: 1; }
+.desk canvas.medium { aspect-ratio: 364 / 170; }
+.desk img, .desk canvas { opacity: 0; transform: translateY(16px); transition: opacity .4s ease-out, transform .4s ease-out; }
+.desk :nth-child(1) { transition-delay: 0s; }
+.desk :nth-child(2) { transition-delay: .06s; }
+.desk :nth-child(3) { transition-delay: .12s; }
+.desk :nth-child(4) { transition-delay: .18s; }
+.desk :nth-child(5) { transition-delay: .24s; }
+.desk :nth-child(6) { transition-delay: .30s; }
+.desk :nth-child(7) { transition-delay: .36s; }
+.desk :nth-child(8) { transition-delay: .42s; }
+.desk.in img, .desk.in canvas { opacity: 1; transform: translateY(0); }
 .desk .w2 { grid-column: span 2; }
 @media (max-width: 833px) { .desk { grid-template-columns: repeat(2, minmax(0, 170px)); gap: 16px; } }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; max-width: 880px; margin: 48px auto 0; }
