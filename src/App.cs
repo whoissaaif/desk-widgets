@@ -104,7 +104,7 @@ namespace DeskWidgets
         readonly Control invoker = new Control(); // brings background results to the UI thread
         readonly System.Windows.Forms.Timer updateTimer = new System.Windows.Forms.Timer { Interval = 24 * 60 * 60 * 1000 };
         FileSystemWatcher wallpaperWatcher;
-        readonly System.Windows.Forms.Timer wallpaperDebounce = new System.Windows.Forms.Timer { Interval = 150 };
+        readonly System.Windows.Forms.Timer wallpaperDebounce = new System.Windows.Forms.Timer { Interval = 50 };
 
         public App(EventWaitHandle showLibrary, bool openWindow, string url)
         {
@@ -504,8 +504,14 @@ namespace DeskWidgets
 
         void RefreshBackdrop()
         {
-            DesktopBackdrop.Invalidate();
-            foreach (var w in widgets) w.BackdropChanged();
+            DesktopBackdrop.RebuildAsync(delegate(Bitmap newMap, Rectangle newVirt)
+            {
+                RunOnUi(delegate
+                {
+                    DesktopBackdrop.Apply(newMap, newVirt);
+                    foreach (var w in widgets) w.BackdropChanged();
+                });
+            });
         }
 
         // FileSystemWatcher on the Themes folder fires within ~100ms of a wallpaper change,
