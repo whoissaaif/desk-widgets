@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Review · Desk Widgets</title>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <main class="content section">
+    <h1 class="t-section two-tone">Review. <span class="tail">Read it, then decide.</span></h1>
+    <p class="t-intro">Approving pins the hash of exactly the text shown here. The app installs nothing else.</p>
+    <div id="page" style="margin-top: 40px"></div>
+  </main>
+
+  <script type="module">
+    import { nav, el, art, notice, supabase, categoryName, formatDate, sha256Hex, isValidId } from "./assets/site.js";
+    import { signedIn, signOutLink } from "./assets/account.js";
+
+    nav(null);
+    const page = document.getElementById("page");
+
+    // Line diff (longest common subsequence). Big inputs fall back to the full text.
+    function diff(before, after) {
+      const a = before.split("\n"), b = after.split("\n");
+      if (a.length * b.length > 4e6) return null;
+      const n = a.length, m = b.length, L = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+      for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+        L[i][j] = a[i] === b[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+      const out = [];
+      let i = 0, j = 0;
+      while (i < n || j < m) {
+        if (i < n && j < m && a[i] === b[j]) { out.push(["  ", a[i]]); i++; j++; }
+        else if (j < m && (i === n || L[i][j + 1] >= L[i + 1][j])) out.push(["+ ", b[j++]]);
+        else out.push(["- ", a[i++]]);
+      }
+      return out;
+    }
+
+    function codeBlock(source, previous) {
+      const lines = previous != null ? diff(previous, source) : null;
+      if (!lines) return el("pre", { class: "code" }, source);
+      // Changed lines carry +/- as well as color.
+      return el("pre", { class: "code diff" }, lines.map(([mark, text]) =>
+        el("span", { class: mark === "+ " ? "add" : mark === "- " ? "del" : null }, mark + text + "\n")));
+    }
+
+    async function main() {
+      const user = await signedIn(page, "Owner sign-in.");
+      if (!user) return;
+      const db = await supabase();
+      const { data: admin } = await db.rpc("is_admin");
+      if (!admin) { page.replaceChildren(notice("This page is for the owner.", true)); return; }
+
+      const { data: pending, error } = await db.from("versions")
+        .select("widget_id, version, name, category, description, api_version, source, preview, created_at")
+        .eq("status", "pending").order("created_at");
+      if (error) throw error;
+
+      const queue = [];
+      for (const v of pending || []) {
+        if (!isValidId(v.widget_id)) continue;
+        const { data: prev } = await db.from("versions").select("version, source").eq("widget_id", v.widget_id)
+          .eq("status", "approved").order("version", { ascending: false }).limit(1).maybeSingle();
+        const result = el("div");
+        const decide = async (approve) => {
+          // The hash of the very string rendered above; the server recomputes and compares.
+          const { error } = approve
+            ? await db.rpc("approve", { p_widget: v.widget_id, p_version: v.version, p_sha256: await sha256Hex(v.source) })
+            : await db.rpc("reject", { p_widget: v.widget_id, p_version: v.version });
+          result.replaceChildren(error ? notice(error.message, true) : notice(approve ? "Approved. It's live." : "Rejected."));
+        };
+        queue.push(el("section", { style: "margin-bottom: 80px" },
+          el("div", { class: "product" },
+            art(v.preview, v.name),
+            el("div", {},
+              el("h2", { class: "t-large" }, v.name),
+              el("p", { class: "subtitle" }, v.description || categoryName(v.category)),
+              el("p", { class: "t-reduced" }, v.widget_id + " · version " + v.version + " · " + categoryName(v.category) +
+                " · API " + v.api_version + " · sent " + formatDate(v.created_at)),
+              el("p", { class: "t-reduced" }, prev ? "Changes since approved version " + prev.version + " below." : "First version: the full source is below."))),
+          el("h3", { class: "t-headline", style: "margin: 32px 0 12px" }, "Source"),
+          codeBlock(v.source, prev ? prev.source : null),
+          el("div", { class: "actions" },
+            el("button", { class: "button destructive", type: "button", onclick: () => decide(false) }, "Reject"),
+            el("button", { class: "button", type: "button", onclick: () => decide(true) }, "Approve Version " + v.version)),
+          result));
+      }
+
+      // ---- invite ----
+      const email = el("input", { class: "input", id: "invite-email", type: "email", required: true });
+      const username = el("input", { class: "input", id: "invite-name", pattern: "[a-z0-9-]{2,24}", required: true });
+      const inviteResult = el("div");
+      const invite = el("form", { class: "form", onsubmit: async e => {
+          e.preventDefault();
+          const { data, error } = await db.functions.invoke("invite", { body: { email: email.value, username: username.value } });
+          inviteResult.replaceChildren(error
+            ? notice("The invite wasn't sent. " + ((data && data.error) || error.message), true)
+            : notice("Invited " + data.invited + " as " + data.username + "."));
+        } },
+        el("div", { class: "field" }, el("label", { for: "invite-email" }, "Email"), email),
+        el("div", { class: "field" }, el("label", { for: "invite-name" }, "Username"), username,
+          el("span", { class: "hint" }, "2 to 24 lowercase letters, digits or hyphens. It's part of every widget id they make and can't change.")),
+        el("div", {}, el("button", { class: "button grey", type: "submit" }, "Send Invite")),
+        inviteResult);
+
+      page.replaceChildren(
+        el("p", { class: "t-reduced" }, "Signed in as the owner. ", await signOutLink()),
+        el("h2", { class: "block" }, "Waiting for Review"),
+        queue.length ? el("div", {}, queue) : el("p", { class: "t-reduced" }, "Nothing is waiting."),
+        el("h2", { class: "block" }, "Invite an Uploader"),
+        invite);
+    }
+    main().catch(() => page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true)));
+  </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Upload a widget · Desk Widgets</title>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <main class="content section">
+    <h1 class="t-section two-tone">Upload. <span class="tail">Send a widget for review.</span></h1>
+    <p class="t-intro">Uploading is by invitation. The owner reads every version before anyone can install it.</p>
+    <div id="page" style="margin-top: 40px"></div>
+  </main>
+
+  <script type="module">
+    import { nav, el, notice, supabase, CATEGORIES, formatDate } from "./assets/site.js";
+    import { signedIn, signOutLink } from "./assets/account.js";
+
+    nav("upload");
+    const page = document.getElementById("page");
+    const MAX_SOURCE = 512 * 1024, MAX_PREVIEW = 100 * 1024;
+
+    async function main() {
+      const user = await signedIn(page, "We'll email you a link. Only invited addresses can sign in.");
+      if (!user) return;
+      const db = await supabase();
+      const { data: profile } = await db.from("profiles").select("username").eq("id", user.id).maybeSingle();
+      if (!profile) { page.replaceChildren(notice("Your account isn't set up for uploads. Ask the owner for an invite.", true)); return; }
+      const username = profile.username;
+
+      const { data: mine } = await db.from("widgets").select("id, slug").eq("owner", user.id).order("id");
+      const { data: versions } = await db.from("versions").select("widget_id, version, name, status, created_at")
+        .order("created_at", { ascending: false });
+
+      // ---- the form ----
+      const which = el("select", { class: "input", id: "which" },
+        el("option", { value: "" }, "New widget…"), (mine || []).map(w => el("option", { value: w.id }, w.id)));
+      const slug = el("input", { class: "input", id: "slug", pattern: "[a-z0-9-]{1,36}", placeholder: "moon-phase" });
+      const idHint = el("span", { class: "hint" });
+      const slugField = el("div", { class: "field" }, el("label", { for: "slug" }, "Short Name"), slug, idHint);
+      const name = el("input", { class: "input", id: "name", maxlength: "40", required: true, placeholder: "Moon Phase" });
+      const category = el("select", { class: "input", id: "category" }, CATEGORIES.map(([id, n]) => el("option", { value: id }, n)));
+      const description = el("input", { class: "input", id: "description", maxlength: "120", placeholder: "Tonight's moon" });
+      const sourceFile = el("input", { type: "file", id: "sourceFile", accept: ".cs,text/plain" });
+      const source = el("textarea", { class: "input", id: "source", spellcheck: "false", required: true,
+        placeholder: "[DeskWidget(Name = \"Moon Phase\")]\npublic sealed class MoonPhase : WidgetWindow { ... }" });
+      const previewFile = el("input", { type: "file", id: "preview", accept: "image/png" });
+      const result = el("div");
+
+      const updateId = () => {
+        slugField.hidden = which.value !== "";
+        idHint.textContent = "Your widget's id will be u." + username + "." + (slug.value || "short-name") + ". It can't change later.";
+      };
+      which.addEventListener("change", updateId);
+      slug.addEventListener("input", updateId);
+      updateId();
+      sourceFile.addEventListener("change", async () => { if (sourceFile.files[0]) source.value = await sourceFile.files[0].text(); });
+
+      const form = el("form", { class: "form", onsubmit: async e => {
+          e.preventDefault();
+          const fail = text => result.replaceChildren(notice(text, true));
+          const text = source.value.replace(/^﻿/, "");
+          if (new TextEncoder().encode(text).length > MAX_SOURCE) return fail("The source is larger than 512 KB.");
+          if (!/\[\s*DeskWidget\b/.test(text)) return fail("The source needs one class marked [DeskWidget].");
+          let preview = null;
+          const png = previewFile.files[0];
+          if (png) {
+            if (png.size > MAX_PREVIEW) return fail("The preview is larger than 100 KB.");
+            const bytes = new Uint8Array(await png.arrayBuffer());
+            if (bytes[0] !== 0x89 || bytes[1] !== 0x50) return fail("The preview must be a PNG image.");
+            let binary = "";
+            for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+            preview = btoa(binary);
+          }
+          let widgetId = which.value;
+          if (!widgetId) {
+            if (!/^[a-z0-9-]{1,36}$/.test(slug.value)) return fail("The short name can use lowercase letters, digits and hyphens.");
+            widgetId = "u." + username + "." + slug.value;
+            const { error } = await db.from("widgets").insert({ id: widgetId, owner: user.id, slug: slug.value });
+            if (error) return fail("That short name can't be used: " + error.message);
+          }
+          const { error } = await db.from("versions").insert({
+            widget_id: widgetId, name: name.value.trim(), category: category.value,
+            description: description.value.trim(), api_version: 1, source: text, preview,
+          });
+          if (error) return fail("It wasn't sent: " + error.message);
+          result.replaceChildren(notice("Sent for review. It shows here as Pending until the owner approves it."));
+          setTimeout(() => location.reload(), 1500);
+        } },
+        el("div", { class: "field" }, el("label", { for: "which" }, "Widget"), which,
+          el("span", { class: "hint" }, "Pick one of yours to send a new version, or start a new widget.")),
+        slugField,
+        el("div", { class: "field" }, el("label", { for: "name" }, "Name"), name),
+        el("div", { class: "field" }, el("label", { for: "category" }, "Category"), category),
+        el("div", { class: "field" }, el("label", { for: "description" }, "Description"), description,
+          el("span", { class: "hint" }, "One short line, shown under the name.")),
+        el("div", { class: "field" }, el("label", { for: "source" }, "C# Source"), sourceFile, source,
+          el("span", { class: "hint" }, "One file, up to 512 KB, with exactly one [DeskWidget] class. See samples/HelloWidget.cs.")),
+        el("div", { class: "field" }, el("label", { for: "preview" }, "Preview (optional)"), previewFile,
+          el("span", { class: "hint" }, "A PNG of the widget, up to 100 KB.")),
+        el("div", {}, el("button", { class: "button", type: "submit" }, "Send for Review")),
+        result);
+
+      // ---- your uploads ----
+      const list = (versions || []).length
+        ? el("div", { class: "group" }, versions.map(v => el("div", { class: "row" },
+            el("div", { class: "main" }, el("div", { class: "t-headline" }, v.name + " · Version " + v.version),
+              el("div", { class: "t-reduced" }, v.widget_id + " · sent " + formatDate(v.created_at))),
+            el("span", { class: "status " + v.status }, v.status))))
+        : el("p", { class: "t-reduced" }, "Nothing sent yet.");
+
+      page.replaceChildren(
+        el("p", { class: "t-reduced" }, "Signed in as " + username + ". ", await signOutLink()),
+        form,
+        el("h2", { class: "block" }, "Your Uploads"),
+        list);
+    }
+    main().catch(() => page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true)));
+  </script>
+</body>
+</html>

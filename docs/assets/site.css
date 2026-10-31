@@ -1,0 +1,148 @@
+/* Desk Widgets website. Design language: design/apple-design.md (§14 kit, §17.1).
+   Every color, size and radius here comes from that file; don't add others. */
+
+:root {
+  --font-text: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, "Cascadia Mono", Consolas, monospace;
+
+  --page: #ffffff;  --grey-bg: #f5f5f7;  --grey-fill: #e8e8ed;  --grey-line: #d2d2d7;
+  --text: #1d1d1f;  --text-2: #6e6e73;
+  --blue-fill: #0071e3;  --link: #0066cc;  --tinted: rgba(0, 122, 255, .08);  --tinted-text: #0066cc;
+  --green-text: #248a3d;  --red-text: #d70015;  --new: #b64400;
+  --card: #f5f5f7;  --code-bg: #f5f5f7;
+  --glass: rgba(250, 250, 252, .8);  --glass-filter: saturate(180%) blur(20px);
+  --r-pill: 980px; --r-card-lg: 28px; --r-card: 18px; --r-field: 12px; --r-small: 8px;
+  --focus: 0 0 0 3px rgba(0, 113, 227, .6);
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #000000;  --grey-bg: #1d1d1f;  --grey-fill: #2a2a2d;  --grey-line: #424245;
+    --text: #f5f5f7;  --text-2: #a1a1a6;
+    --link: #2997ff;  --tinted: rgba(10, 132, 255, .16);  --tinted-text: #2997ff;
+    --green-text: #30d158;  --red-text: #ff6961;  --new: #ff791b;
+    --card: #1d1d1f;  --code-bg: #1d1d1f;
+    --glass: rgba(29, 29, 31, .8);
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--page); color: var(--text); font: 400 17px/1.47 var(--font-text); letter-spacing: -0.022em; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+:focus-visible { outline: none; box-shadow: var(--focus); border-radius: 4px; }
+img { display: block; max-width: 100%; }
+[hidden] { display: none !important; }
+
+/* ---- global nav: 44 px glass (§8.1) ---- */
+.nav { position: sticky; top: 0; z-index: 10; height: 44px; background: var(--glass);
+  backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter); border-bottom: 1px solid var(--grey-line); }
+.nav .inner { max-width: 1024px; margin: 0 auto; padding: 0 22px; height: 44px; display: flex; align-items: center; gap: 8px; }
+.nav .brand { font: 600 14px/44px var(--font-text); color: var(--text); margin-right: auto; letter-spacing: -0.016em; }
+.nav a.link { font: 400 12px/44px var(--font-text); letter-spacing: -0.01em; color: var(--text); opacity: .8; padding: 0 8px; }
+.nav a.link:hover { opacity: 1; text-decoration: none; }
+.nav a.link[aria-current="page"] { opacity: 1; font-weight: 600; }
+@media (prefers-reduced-transparency: reduce) { .nav { background: var(--page); backdrop-filter: none; -webkit-backdrop-filter: none; } }
+
+/* ---- layout ---- */
+.content { max-width: 1024px; margin: 0 auto; padding: 0 22px; } /* a 980 px column, like the nav (§5.1) */
+.section { padding-top: 56px; padding-bottom: 80px; } /* sides come from .content */
+@media (max-width: 734px) { .content { padding-left: 16px; padding-right: 16px; } .section { padding-top: 40px; padding-bottom: 56px; } }
+
+/* ---- type (§3.3) ---- */
+.t-hero { font: 600 56px/60px var(--font-display); letter-spacing: -0.005em; margin: 0; }
+.t-section { font: 600 40px/44px var(--font-display); margin: 0; }
+.t-card { font: 600 28px/32px var(--font-display); letter-spacing: 0.007em; margin: 0; }
+.t-intro { font: 400 21px/29px var(--font-display); letter-spacing: 0.011em; color: var(--text-2); margin: 8px 0 0; }
+.t-large { font: 700 34px/40px var(--font-display); margin: 0; }
+.t-headline { font: 600 17px/21px var(--font-text); margin: 0; }
+.t-reduced { font: 400 14px/20px var(--font-text); letter-spacing: -0.016em; color: var(--text-2); }
+.t-caption { font: 400 12px/16px var(--font-text); letter-spacing: -0.01em; color: var(--text-2); }
+.two-tone .tail { color: var(--text-2); }
+@media (max-width: 734px) { .t-hero { font-size: 40px; line-height: 44px; } .t-section { font-size: 28px; line-height: 32px; } }
+
+/* ---- buttons (§8.3, §17.6) ---- */
+.button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 11px 21px;
+  border-radius: var(--r-pill); font: 400 17px/1.18 var(--font-text); letter-spacing: -0.022em; border: 1px solid transparent;
+  cursor: pointer; background: var(--blue-fill); color: #fff; text-decoration: none; }
+.button:hover { filter: brightness(1.08); text-decoration: none; }
+.button.secondary { background: transparent; color: var(--link); border-color: var(--link); }
+.button.small { min-height: 36px; padding: 8px 15px; font-size: 14px; letter-spacing: -0.016em; }
+.button.grey { background: var(--grey-fill); color: var(--text); }
+.button.destructive { background: var(--grey-fill); color: var(--red-text); }
+.button:disabled { opacity: .4; cursor: default; filter: none; }
+.get { display: inline-flex; align-items: center; justify-content: center; min-width: 64px; height: 32px; padding: 7px 16px;
+  border-radius: var(--r-pill); background: var(--tinted); color: var(--tinted-text); font: 700 13px/1 var(--font-text);
+  border: 0; cursor: pointer; text-decoration: none; }
+.get:hover { filter: brightness(1.08); text-decoration: none; }
+.more::after { content: " ›"; }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 24px; }
+
+/* ---- segmented pill control (§8.4) and search ---- */
+.segmented { display: inline-flex; gap: 2px; padding: 4px; background: var(--grey-fill); border-radius: var(--r-pill); flex-wrap: wrap; }
+.segmented button { border: 0; background: transparent; color: var(--text); font: 400 14px/20px var(--font-text);
+  padding: 8px 16px; border-radius: var(--r-pill); cursor: pointer; letter-spacing: -0.016em; min-height: 36px; }
+.segmented button[aria-pressed="true"] { background: var(--text); color: var(--page); }
+.search { width: 100%; max-width: 320px; height: 36px; padding: 0 14px; border-radius: var(--r-field); border: 1px solid var(--grey-line);
+  background: var(--page); color: var(--text); font: 400 14px var(--font-text); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; margin: 40px 0 24px; }
+
+/* ---- gallery tiles ---- */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+.tile { display: flex; flex-direction: column; gap: 12px; color: inherit; }
+.tile:hover { text-decoration: none; }
+.art { aspect-ratio: 1 / 1; border-radius: var(--r-card); background: var(--card); display: grid; place-items: center; overflow: hidden; }
+.art img { width: 78%; height: 78%; object-fit: contain; }
+.art .none { color: var(--text-2); font: 400 14px var(--font-text); }
+.tile-row { display: flex; gap: 12px; align-items: center; }
+.tile-row .text { flex: 1; min-width: 0; }
+.tile-row .name { font: 600 15px/20px var(--font-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile-row .by { font: 400 13px/18px var(--font-text); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- notices, cards, lists ---- */
+.notice { background: var(--card); border-radius: var(--r-field); padding: 16px 20px; font: 400 14px/20px var(--font-text); color: var(--text-2); }
+.notice strong { color: var(--text); font-weight: 600; }
+.notice.error { color: var(--red-text); }
+.empty { text-align: center; padding: 80px 0; color: var(--text-2); }
+.empty .t-card { color: var(--text-2); }
+.group { background: var(--card); border-radius: var(--r-field); overflow: hidden; }
+.row { display: flex; gap: 16px; align-items: center; padding: 12px 16px; min-height: 48px; }
+.row + .row { border-top: 1px solid var(--grey-line); margin-left: 16px; padding-left: 0; }
+.row .main { flex: 1; min-width: 0; }
+.status { font: 600 12px/16px var(--font-text); text-transform: uppercase; letter-spacing: 0; }
+.status.approved { color: var(--green-text); } .status.rejected { color: var(--red-text); } .status.pending { color: var(--text-2); }
+
+/* ---- widget page: App Store-like (§2.9, §8.12) ---- */
+.product { display: grid; grid-template-columns: 280px 1fr; gap: 40px; align-items: center; }
+.product .art { border-radius: var(--r-card-lg); }
+.product .subtitle { font: 700 17px/22px var(--font-text); color: var(--text-2); margin: 4px 0 0; }
+@media (max-width: 734px) { .product { grid-template-columns: 1fr; gap: 24px; } .product .art { max-width: 280px; } }
+.info { display: flex; overflow-x: auto; margin: 40px 0; border-top: 1px solid var(--grey-line); border-bottom: 1px solid var(--grey-line); }
+.info > div { flex: 1 0 140px; padding: 16px 12px; text-align: center; }
+.info > div + div { border-left: 1px solid var(--grey-line); }
+.info .label { font: 600 11px/14px var(--font-text); text-transform: uppercase; color: var(--text-2); }
+.info .value { font: 700 22px/26px var(--font-display); margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+.info .unit { font: 400 11px/16px var(--font-text); color: var(--text-2); }
+.code { background: var(--code-bg); border-radius: var(--r-card); padding: 20px; overflow: auto; max-height: 640px;
+  font: 400 13px/20px var(--font-mono); letter-spacing: 0; white-space: pre; tab-size: 4; margin: 0; }
+.diff .add { color: var(--green-text); } .diff .del { color: var(--red-text); }
+h2.block { font: 600 28px/32px var(--font-display); margin: 56px 0 16px; }
+
+/* ---- forms (§8.7) ---- */
+.form { display: grid; gap: 20px; max-width: 640px; }
+.field { display: grid; gap: 6px; }
+.field label { font: 600 14px/20px var(--font-text); }
+.field .hint { font: 400 12px/16px var(--font-text); color: var(--text-2); }
+.input, select.input, textarea.input { width: 100%; min-height: 44px; padding: 10px 14px; border-radius: var(--r-field);
+  border: 1px solid var(--grey-line); background: var(--page); color: var(--text); font: 400 17px/1.3 var(--font-text); letter-spacing: -0.022em; }
+textarea.input { min-height: 220px; font: 400 13px/20px var(--font-mono); letter-spacing: 0; resize: vertical; }
+.input:focus { outline: none; border-color: var(--blue-fill); box-shadow: var(--focus); }
+
+/* ---- footer (§8.10) ---- */
+.footer { background: var(--grey-bg); margin-top: 80px; }
+.footer .content { padding-top: 20px; padding-bottom: 20px; font: 400 12px/16px var(--font-text); color: var(--text-2); }
+.footer a { color: var(--text-2); text-decoration: underline; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
