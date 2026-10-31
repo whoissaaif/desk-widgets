@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
@@ -66,6 +67,13 @@ namespace DeskWidgets
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
         }
 
+        protected override void OnTextChanged(EventArgs e)
+        {
+            base.OnTextChanged(e);
+            int w = TextRenderer.MeasureText(Text, Font).Width + WidgetWindow.Px(32);
+            Width = Math.Max(WidgetWindow.Px(76), w);
+        }
+
         protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
         protected override void OnMouseLeave(EventArgs e) { hover = pressed = false; Invalidate(); base.OnMouseLeave(e); }
         protected override void OnMouseDown(MouseEventArgs e) { pressed = e.Button == MouseButtons.Left; Invalidate(); base.OnMouseDown(e); }
@@ -75,50 +83,105 @@ namespace DeskWidgets
     }
 
     // A scroll panel with smooth mouse-wheel interpolation: intercepts WM_MOUSEWHEEL and eases
-    // toward the target position instead of jumping. Scrollbar drags and programmatic scrolls stay
-    // instant. Used for the library window's content area.
+    // toward the target position using a critically-damped spring instead of jumping. Time-based, so
+    // the animation speed is consistent regardless of timer jitter. Scrollbar drags and programmatic
+    // scrolls stay instant. Used for the library window's content area.
+    //
+    // All content lives inside an inner viewport panel. Scrolling moves that single panel instead of
+    // repositioning every child control individually, so each frame is O(1) instead of O(n).
     sealed class SmoothPanel : Panel
     {
-        readonly Timer anim = new Timer { Interval = 16 };
+        internal readonly Panel viewport;
+        readonly Timer anim = new Timer { Interval = 10 };
+        float offset;
         float target;
+        float velocity;
         bool animating;
+        int lastTick;
+        int contentHeight;
+
+        const float Stiffness = 256f; // spring constant (ω²), ω = 16
+        const float Damping = 32f;    // damping coefficient (2ω), critically damped
 
         public SmoothPanel()
         {
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+            viewport = new Panel();
+            base.Controls.Add(viewport);
             anim.Tick += OnTick;
+        }
+
+        public new ControlCollection Controls { get { return viewport.Controls; } }
+        public new void SuspendLayout() { viewport.SuspendLayout(); }
+        public new void ResumeLayout() { viewport.ResumeLayout(); }
+
+        public int ContentHeight
+        {
+            get { return contentHeight; }
+            set
+            {
+                contentHeight = value;
+                viewport.Size = new Size(ClientSize.Width, Math.Max(value, ClientSize.Height));
+                Clamp();
+            }
         }
 
         float MaxScroll
         {
             get
             {
-                int max = AutoScrollMinSize.Height - ClientSize.Height;
+                int max = contentHeight - ClientSize.Height;
                 return max > 0 ? max : 0;
             }
         }
 
+        void Clamp()
+        {
+            target = Math.Max(0, Math.Min(target, MaxScroll));
+            offset = Math.Max(0, Math.Min(offset, MaxScroll));
+            viewport.Top = -(int)Math.Round(offset);
+        }
+
         void OnTick(object s, EventArgs e)
         {
-            float current = -AutoScrollPosition.Y;
+            int now = Environment.TickCount;
+            float dt = (now - lastTick) / 1000f;
+            if (dt <= 0 || dt > 0.1f) dt = 0.016f;
+            lastTick = now;
+
             target = Math.Min(target, MaxScroll);
-            float diff = target - current;
-            if (Math.Abs(diff) < 0.5f)
+
+            float displacement = offset - target;
+            velocity += (-Stiffness * displacement - Damping * velocity) * dt;
+            float next = offset + velocity * dt;
+
+            if (Math.Abs(displacement) < 0.5f && Math.Abs(velocity) < 10f)
             {
-                AutoScrollPosition = new Point(0, (int)Math.Round(target));
+                offset = target;
+                viewport.Top = -(int)Math.Round(target);
+                velocity = 0;
                 anim.Stop();
                 animating = false;
                 return;
             }
-            AutoScrollPosition = new Point(0, (int)Math.Round(current + diff * 0.25f));
+
+            next = Math.Max(0, Math.Min(next, MaxScroll));
+            offset = next;
+            viewport.Top = -(int)Math.Round(next);
         }
 
-        public void ScrollToTop()
+        public void ScrollTo(float position)
         {
-            anim.Stop();
-            animating = false;
-            target = 0;
-            AutoScrollPosition = Point.Empty;
+            position = Math.Max(0, Math.Min(position, MaxScroll));
+            if (Math.Abs(offset - position) < 1f) return;
+            target = position;
+            velocity = 0;
+            animating = true;
+            lastTick = Environment.TickCount;
+            anim.Start();
         }
+
+        public void ScrollToTop() { ScrollTo(0); }
 
         protected override void WndProc(ref Message m)
         {
@@ -127,13 +190,32 @@ namespace DeskWidgets
             {
                 int delta = (short)(m.WParam.ToInt64() >> 16);
                 float step = -(delta / 120f) * WidgetWindow.Px(60);
-                if (!animating) target = -AutoScrollPosition.Y;
+                if (!animating) { target = offset; velocity = 0; }
                 target = Math.Max(0, Math.Min(target + step, MaxScroll));
                 animating = true;
+                lastTick = Environment.TickCount;
                 anim.Start();
                 return;
             }
             base.WndProc(ref m);
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            if (viewport != null)
+            {
+                viewport.Width = ClientSize.Width;
+                if (contentHeight > 0)
+                    viewport.Height = Math.Max(contentHeight, ClientSize.Height);
+                Clamp();
+            }
+        }
+
+        protected override void OnBackColorChanged(EventArgs e)
+        {
+            base.OnBackColorChanged(e);
+            if (viewport != null) viewport.BackColor = BackColor;
         }
 
         protected override void Dispose(bool disposing)
