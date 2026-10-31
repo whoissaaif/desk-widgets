@@ -330,7 +330,7 @@ namespace DeskWidgets.Widgets
             face.AddChoice("Vibrant", cur == "vibrant", delegate { Settings.Set("face", "vibrant"); Changed(); });
         }
 
-        internal override void BackdropChanged()
+        public override void BackdropChanged()
         {
             if (CurrentTheme != VibrantTheme) return;
             DisposeDial();

@@ -9,7 +9,7 @@ namespace DeskWidgets
     // Just enough iCalendar (.ics) to list upcoming events: VEVENTs with all-day or timed starts,
     // UTC or TZID times, DTEND/DURATION, cancelled events skipped, and the common RRULEs
     // (DAILY / WEEKLY with BYDAY / MONTHLY / YEARLY with INTERVAL, COUNT, UNTIL) plus EXDATE.
-    sealed class CalEvent
+    public sealed class CalEvent
     {
         public string Title;
         public DateTime Start, End; // local time
@@ -17,7 +17,7 @@ namespace DeskWidgets
         public int Calendar;        // which subscribed calendar it came from (for its colour)
     }
 
-    static class Ics
+    public static class Ics
     {
         sealed class Prop { public string Params, Value; }
 

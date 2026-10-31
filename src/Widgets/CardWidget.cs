@@ -10,7 +10,7 @@ namespace DeskWidgets.Widgets
     // Base for the Apple-style card widgets: small (170 x 170 pt), medium (364 x 170 pt) or large (364 x 382 pt),
     // 22 pt corner radius, 16 pt margins, dark / light / vibrant appearance, three sizes.
     // Subclasses lay out in points and call P() to convert; everything is drawn on demand.
-    abstract class CardWidget : WidgetWindow
+    public abstract class CardWidget : WidgetWindow
     {
         protected sealed class Palette
         {
@@ -119,7 +119,7 @@ namespace DeskWidgets.Widgets
             using (var edge = new Pen(Color.FromArgb(60, 255, 255, 255), 1f)) g.DrawPath(edge, card);
         }
 
-        internal override void BackdropChanged()
+        public override void BackdropChanged()
         {
             if (backdrop != null) { backdrop.Dispose(); backdrop = null; }
             if (IsVibrant) Render();

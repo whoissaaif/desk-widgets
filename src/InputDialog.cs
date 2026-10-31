@@ -8,7 +8,7 @@ namespace DeskWidgets
     // Small dialog for the few things widgets need typed in (a reminder, a city, a token), laid out
     // like an Apple sheet (§17): bold title, a hint, labeled rounded fields, then Cancel and the
     // blue default button on the right. Created when needed, disposed right after.
-    sealed class InputDialog : Form
+    public sealed class InputDialog : Form
     {
         public sealed class Field
         {

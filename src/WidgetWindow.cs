@@ -178,7 +178,7 @@ namespace DeskWidgets
         }
 
         // The wallpaper or display layout changed (only vibrant widgets care).
-        internal virtual void BackdropChanged() { }
+        public virtual void BackdropChanged() { }
 
         // Called once the widget is really on screen (not for library previews): start timers,
         // background fetches, etc. here rather than in the constructor.

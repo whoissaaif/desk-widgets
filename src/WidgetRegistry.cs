@@ -71,64 +71,27 @@ namespace DeskWidgets
                 Create = s => new AnalogClock(s),
                 Defaults = s => { s.Set("label", "PAR"); s.Set("tz", "Romance Standard Time"); }
             },
-            new WidgetType
-            {
-                Id = "calendar", Category = "productivity", Name = "Calendar", Description = "Today, your next events and the month",
-                Create = s => new CalendarWidget(s)
-            },
-            new WidgetType
-            {
-                Id = "weather", Category = "weather", Name = "Weather", Description = "Now, high and low, and the next hours",
-                Create = s => new WeatherWidget(s)
-            },
-            new WidgetType
-            {
-                Id = "focus-timer", Category = "productivity", Name = "Focus Timer", Description = "A ring that counts down",
-                Create = s => new FocusTimer(s)
-            },
-            new WidgetType
-            {
-                Id = "reminders", Category = "productivity", Name = "Reminders", Description = "Tick things off from the desktop",
-                Create = s => new RemindersWidget(s)
-            },
-            new WidgetType
-            {
-                Id = "notes", Category = "productivity", Name = "Notes", Description = "One note, click to edit",
-                Create = s => new NotesWidget(s)
-            },
-            new WidgetType
-            {
-                Id = "system", Category = "system", Name = "System", Description = "CPU, memory and disk",
-                Create = s => new SystemWidget(s)
-            },
-            new WidgetType
-            {
-                Id = "photo-frame", Category = "media", Name = "Photo Frame", Description = "A picture from your folder, changes hourly",
-                Create = s => new PhotoFrame(s)
-            },
-            new WidgetType
-            {
-                Id = "now-playing", Category = "media", Name = "Now Playing", Description = "What's playing, with play, pause and skip",
-                Create = s => new NowPlayingWidget(s)
-            },
-            new WidgetType
-            {
-                Id = "github", Category = "developer", Name = "GitHub", Description = "Profile, streak and contribution graph",
-                Create = s => new GitHubWidget(s)
-            },
-            new WidgetType
-            {
-                Id = "f1-hub", Category = "sports", Name = "F1 Race Hub", Description = "Next race, its sessions, a countdown and the standings",
-                Create = s => new F1HubWidget(s)
-            },
-            new WidgetType
-            {
-                Id = "f1-timing", Category = "sports", Name = "F1 Timing", Description = "Top five of the latest session, live with OpenF1",
-                Create = s => new F1TimingWidget(s)
-            },
         };
 
         static readonly List<WidgetType> types = new List<WidgetType>(BuiltIn);
+
+        // Old built-in type ids that moved to the community gallery. When a community widget
+        // registers with the new id, any orphaned config sections still using the old id are
+        // migrated so the user keeps their settings.
+        static readonly Dictionary<string, string> Migrations = new Dictionary<string, string>
+        {
+            { "calendar", "u.whoissaaif.calendar" },
+            { "weather", "u.whoissaaif.weather" },
+            { "focus-timer", "u.whoissaaif.focus-timer" },
+            { "reminders", "u.whoissaaif.reminders" },
+            { "notes", "u.whoissaaif.notes" },
+            { "system", "u.whoissaaif.system" },
+            { "photo-frame", "u.whoissaaif.photo-frame" },
+            { "now-playing", "u.whoissaaif.now-playing" },
+            { "github", "u.whoissaaif.github" },
+            { "f1-hub", "u.whoissaaif.f1-hub" },
+            { "f1-timing", "u.whoissaaif.f1-timing" },
+        };
 
         // Raised when community widgets are installed, removed, enabled or disabled.
         public static event Action Changed;
@@ -148,6 +111,20 @@ namespace DeskWidgets
         public static WidgetType[] InCategory(string categoryId)
         {
             return types.Where(t => t.Category == categoryId).ToArray();
+        }
+
+        // The old built-in id that should migrate to this community id, or null.
+        public static string MigrationSource(string communityId)
+        {
+            foreach (var kv in Migrations)
+                if (kv.Value == communityId) return kv.Key;
+            return null;
+        }
+
+        // True when a section's type was a built-in that moved to the gallery.
+        public static bool IsOrphaned(string typeId)
+        {
+            return Migrations.ContainsKey(typeId) && Find(typeId) == null;
         }
 
         // Never replaces an existing entry, built-in or not.

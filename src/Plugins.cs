@@ -159,6 +159,8 @@ namespace DeskWidgets
             if (error != null) return error;
             if (!WidgetRegistry.Register(type)) return "Another widget already uses the id " + p.Id + ".";
             p.Type = type;
+            string oldType = WidgetRegistry.MigrationSource(p.Id);
+            if (oldType != null && App.Current != null) App.Current.MigrateSections(oldType, p.Id);
             return null;
         }
 
@@ -235,7 +237,7 @@ namespace DeskWidgets
             options.ReferencedAssemblies.AddRange(new[]
             {
                 "System.dll", "System.Core.dll", "System.Drawing.dll", "System.Windows.Forms.dll",
-                "System.Xml.dll", "System.Xml.Linq.dll", "System.Web.Extensions.dll", HostPath
+                "System.Xml.dll", "System.Xml.Linq.dll", "System.Web.Extensions.dll", "System.Security.dll", HostPath
             });
             try
             {
