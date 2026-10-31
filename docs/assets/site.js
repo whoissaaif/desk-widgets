@@ -52,6 +52,43 @@ export function nav(current) {
     el("div", { class: "content" },
       "Desk Widgets is free and open source. Community widgets are reviewed before they appear here. ",
       el("a", { href: "https://github.com/whoissaaif/desk-widgets" }, "Source on GitHub"))));
+  account(current).catch(() => {});
+}
+
+// Invite and sign-in links come back to whichever page Supabase was told, with the result in the
+// URL fragment (#access_token=... or #error=...). Every page finishes that here: on success it goes
+// to Review (owner) or Upload (uploader), on failure it says why. Signed in, the nav shows Review.
+async function account(current) {
+  if (!configured) return;
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const arriving = hash.has("access_token") || hash.has("error") || hash.has("error_description");
+  if (hash.has("error") || hash.has("error_description")) {
+    history.replaceState(null, "", location.pathname + location.search); // no error text left in the address bar
+    const why = (hash.get("error_description") || hash.get("error") || "").replace(/\+/g, " ");
+    const main = document.querySelector("main");
+    if (main) main.prepend(notice("That sign-in link didn't work" + (why ? " (" + why + ")" : "") +
+      ". Links expire after a while and work once; ask the owner for a new invite, or request a new link on the Upload page.", true));
+    return;
+  }
+  if (!arriving && !hasStoredSession()) return; // nothing to do: don't load the client on every visit
+  const db = await supabase(); // reads a session from the URL fragment, if there is one
+  const { data: { session } } = await db.auth.getSession();
+  if (!session) return;
+  const { data: isAdmin } = await db.rpc("is_admin");
+  if (arriving) {
+    location.replace(isAdmin ? "admin.html" : "upload.html");
+    return;
+  }
+  if (isAdmin && current !== "review") {
+    const links = document.querySelector(".nav .inner");
+    const upload = links && links.querySelector('a[href="upload.html"]');
+    if (upload) upload.after(el("a", { class: "link", href: "admin.html" }, "Review"));
+  }
+}
+
+// supabase-js keeps the session in localStorage under sb-<project>-auth-token.
+function hasStoredSession() {
+  try { return Object.keys(localStorage).some(k => /^sb-.*-auth-token$/.test(k)); } catch { return false; }
 }
 
 // A widget's preview as an <img>, or a quiet placeholder.
