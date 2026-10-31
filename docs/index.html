@@ -130,6 +130,7 @@ public sealed class HelloWidget : WidgetWindow
     for (const a of document.querySelectorAll(".download")) a.href = DOWNLOAD_URL;
     document.getElementById("sample").href = REPO_URL + "/blob/main/samples/HelloWidget.cs";
     document.getElementById("source").href = REPO_URL;
+    requestAnimationFrame(() => requestAnimationFrame(() => document.querySelector(".desk").classList.add("in")));
   </script>
 </body>
 </html>

@@ -22,7 +22,8 @@ namespace DeskWidgets
             public List<WidgetCard> Cards = new List<WidgetCard>();
         }
 
-        readonly Panel content, sidebar;
+        readonly SmoothPanel content;
+        readonly Panel sidebar;
         readonly PageHeader header;
         readonly PillButton installButton;
         readonly EmptyState noneInstalled, exploreState;
@@ -49,7 +50,7 @@ namespace DeskWidgets
             ClientSize = new Size(Px(980), Px(640));
             MinimumSize = new Size(Px(640), Px(420));
 
-            content = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.WindowBg };
+            content = new SmoothPanel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.WindowBg };
             content.HandleCreated += delegate { Theme.ApplyToScrollbars(content.Handle); };
             header = new PageHeader();
             content.Controls.Add(header);
@@ -218,7 +219,7 @@ namespace DeskWidgets
                 header.Set(cat.Name, cat.Description + ". Drag a widget onto your desktop, or double-click to add it.");
             else
                 header.Set("All Widgets", "Drag a widget onto your desktop, or double-click to add it.");
-            content.AutoScrollPosition = Point.Empty;
+            content.ScrollToTop();
             LayoutContent();
         }
 
