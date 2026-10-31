@@ -10,13 +10,7 @@ memory and about 0.3% of one CPU core with seven widgets on the desktop.
 [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 <p align="center">
-  <img src="docs/assets/img/calendar-dark.png" width="364" alt="Calendar widget">
-  <img src="docs/assets/img/analog-clock-light.png" width="170" alt="Analog clock widget">
-  <img src="docs/assets/img/focus-timer-light.png" width="170" alt="Focus timer widget">
-  <br>
-  <img src="docs/assets/img/weather-light.png" width="364" alt="Weather widget">
-  <img src="docs/assets/img/system-dark.png" width="170" alt="System widget">
-  <img src="docs/assets/img/analog-clock-dark.png" width="170" alt="Dark analog clock widget">
+  <img src="docs/assets/img/widgets-overview.gif" width="720" alt="Desk Widgets overview">
 </p>
 
 ## Install
