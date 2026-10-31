@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -22,7 +24,7 @@ namespace DeskWidgets
 
         public sealed class Listing
         {
-            public string Id, Name, Category, Description, Author, Preview;
+            public string Id, Name, Category, Description, Author;
             public int Version, Api;
         }
 
@@ -56,15 +58,92 @@ namespace DeskWidgets
         // The newest approved version of every widget. Call from a background thread.
         public static List<Listing> Explore()
         {
-            return Query("explore?select=id,version,name,category,description,api_version,preview,author&order=reviewed_at.desc")
+            // Previews are fetched separately, once per version (Preview), so the list stays small.
+            return Query("explore?select=id,version,name,category,description,api_version,author&order=reviewed_at.desc")
                 .Select(r => new Listing
                 {
                     Id = Text(r, "id"), Version = Number(r, "version"), Name = Text(r, "name") ?? "", Category = Text(r, "category"),
-                    Description = Text(r, "description") ?? "", Author = Text(r, "author") ?? "", Api = Number(r, "api_version"),
-                    Preview = Text(r, "preview")
+                    Description = Text(r, "description") ?? "", Author = Text(r, "author") ?? "", Api = Number(r, "api_version")
                 })
                 .Where(l => Plugins.IsValidId(l.Id) && l.Version > 0)
                 .ToList();
+        }
+
+        // ---- previews: fetched once per approved version, then kept on disk ----
+        // An approved version never changes, so neither does its preview: the cache never goes stale.
+
+        static readonly string PreviewDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DeskWidgets", "previews");
+
+        // File name for a version's preview; the id is validated and the version is a number.
+        static string PreviewFile(Listing l, string ext) { return Path.Combine(PreviewDir, l.Id + "_" + l.Version + ext); }
+
+        // A version's preview from the disk cache, or the gallery the first time. Null when it has none.
+        // Call from a background thread.
+        public static Bitmap Preview(Listing l)
+        {
+            if (!Plugins.IsValidId(l.Id) || l.Version < 1) return null;
+            string png = PreviewFile(l, ".png"), none = PreviewFile(l, ".none");
+            try
+            {
+                if (File.Exists(none)) return null;
+                if (File.Exists(png))
+                {
+                    Bitmap cached = DecodePreview(File.ReadAllBytes(png)); // the disk is checked like the network
+                    if (cached != null) return cached;
+                    File.Delete(png);
+                }
+            }
+            catch (Exception) { }
+
+            string base64;
+            try
+            {
+                object[] rows = Query("versions?select=preview&widget_id=eq." + l.Id + "&version=eq." + l.Version + "&status=eq.approved");
+                base64 = rows.Length > 0 ? Text(rows[0], "preview") : null;
+            }
+            catch (Exception) { return null; } // offline: try again next time, nothing cached
+            byte[] bytes = null;
+            if (!string.IsNullOrEmpty(base64) && base64.Length <= 140000)
+                try { bytes = Convert.FromBase64String(base64); } catch (FormatException) { }
+            Bitmap bmp = bytes != null ? DecodePreview(bytes) : null;
+            try
+            {
+                Directory.CreateDirectory(PreviewDir);
+                if (bmp != null) File.WriteAllBytes(png, bytes);
+                else File.WriteAllBytes(none, new byte[0]); // remembered, so it isn't asked for every time
+            }
+            catch (Exception) { }
+            return bmp;
+        }
+
+        // Deletes cached previews of versions that are no longer listed.
+        public static void PrunePreviews(IEnumerable<Listing> listed)
+        {
+            try
+            {
+                if (!Directory.Exists(PreviewDir)) return;
+                var keep = new HashSet<string>(listed.Select(l => l.Id + "_" + l.Version), StringComparer.OrdinalIgnoreCase);
+                foreach (string f in Directory.GetFiles(PreviewDir))
+                    if (!keep.Contains(Path.GetFileNameWithoutExtension(f))) File.Delete(f);
+            }
+            catch (Exception) { }
+        }
+
+        // Untrusted image data: size-capped, decoded into a copy, and dropped if it's odd in any way.
+        public static Bitmap DecodePreview(byte[] png)
+        {
+            if (png == null || png.Length == 0 || png.Length > 105000) return null;
+            try
+            {
+                using (var ms = new MemoryStream(png))
+                using (var img = Image.FromStream(ms, false, true))
+                {
+                    if (img.Width < 1 || img.Height < 1 || img.Width > 1024 || img.Height > 1024) return null;
+                    return new Bitmap(img);
+                }
+            }
+            catch (Exception) { return null; }
         }
 
         // ---- deskwidgets://install/<id>/<version> ----

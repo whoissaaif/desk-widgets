@@ -320,7 +320,8 @@ namespace DeskWidgets
                 try
                 {
                     list = Community.Explore();
-                    foreach (var l in list) previews[l] = ExploreCard.DecodePreview(l.Preview);
+                    foreach (var l in list) previews[l] = Community.Preview(l); // disk cache after the first time
+                    Community.PrunePreviews(list);
                 }
                 catch (Exception) { list = null; }
                 App.RunOnUi(delegate
@@ -650,16 +651,8 @@ namespace DeskWidgets
         public static Bitmap DecodePreview(string base64)
         {
             if (string.IsNullOrEmpty(base64) || base64.Length > 140000) return null;
-            try
-            {
-                using (var ms = new System.IO.MemoryStream(Convert.FromBase64String(base64)))
-                using (var img = Image.FromStream(ms, false, true))
-                {
-                    if (img.Width < 1 || img.Height < 1 || img.Width > 1024 || img.Height > 1024) return null;
-                    return new Bitmap(img);
-                }
-            }
-            catch (Exception) { return null; }
+            try { return Community.DecodePreview(Convert.FromBase64String(base64)); }
+            catch (FormatException) { return null; }
         }
 
         public override Color BackColor { get { return hover ? Theme.CardHover : Theme.Card; } set { } }
