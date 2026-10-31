@@ -163,7 +163,7 @@ export function avatar(profile, size) {
   const letter = profile && profile.username ? profile.username[0].toUpperCase() : "";
   return el("span", { class: "avatar", style: style + ";font-size:" + Math.round(size * 0.45) + "px", "aria-hidden": "true" }, letter);
 }
-export const isPhoto = b64 => typeof b64 === "string" && b64.length > 0 && b64.length <= 60000 && BASE64.test(b64);
+export const isPhoto = b64 => typeof b64 === "string" && b64.length > 0 && b64.length <= 200000 && BASE64.test(b64);
 
 // Apply saved theme before anything renders (called once at import time).
 const _savedTheme = localStorage.getItem("dw-theme");
