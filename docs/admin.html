@@ -98,25 +98,28 @@
       // ---- access requests: Accept emails an invite (functions/invite), Reject just records it ----
       const { data: requests } = await db.from("access_requests").select("id, email, created_at")
         .eq("status", "pending").order("created_at");
+      const requestGroup = el("div", { class: "group" });
+      const requestEmpty = el("p", { class: "t-reduced" }, "No one is waiting for access.");
       const requestRows = (requests || []).map(rq => {
         const state = el("span", { class: "t-reduced" });
         const accept = el("button", { class: "button small", type: "button" }, "Accept");
         const reject = el("button", { class: "button grey small", type: "button" }, "Reject");
+        const row = el("div", { class: "row" },
+          el("div", { class: "main" }, el("div", { class: "t-headline" }, rq.email),
+            el("div", { class: "t-reduced" }, "Asked " + formatDate(rq.created_at))),
+          state, reject, accept);
         const decide = async yes => {
           accept.disabled = reject.disabled = true;
           const error = yes ? (await callFunction("invite", { request: rq.id })).error
                             : ((await db.rpc("reject_request", { p_id: rq.id })).error || {}).message;
           if (error) { accept.disabled = reject.disabled = false; state.replaceChildren(el("span", { class: "status rejected" }, error)); return; }
-          accept.remove(); reject.remove();
-          state.replaceChildren(el("span", { class: "status " + (yes ? "approved" : "rejected") }, yes ? "Invite sent" : "Rejected"));
+          row.remove();
+          if (!requestGroup.hasChildNodes()) requestGroup.replaceWith(requestEmpty);
           toast(yes ? "Invite sent to " + rq.email + "." : "Request from " + rq.email + " rejected.");
         };
         accept.addEventListener("click", () => decide(true));
         reject.addEventListener("click", () => decide(false));
-        return el("div", { class: "row" },
-          el("div", { class: "main" }, el("div", { class: "t-headline" }, rq.email),
-            el("div", { class: "t-reduced" }, "Asked " + formatDate(rq.created_at))),
-          state, reject, accept);
+        return row;
       });
 
       // ---- all widgets: every widget on the platform, with delete ----
@@ -173,7 +176,7 @@
         el("h2", { class: "block", id: "widgets" }, "All Widgets"),
         widgetRows.length ? el("div", { class: "group" }, widgetRows) : el("p", { class: "t-reduced" }, "No widgets on the platform yet."),
         el("h2", { class: "block", id: "requests" }, "Access Requests"),
-        requestRows.length ? el("div", { class: "group" }, requestRows) : el("p", { class: "t-reduced" }, "No one is waiting for access."),
+        requestRows.length ? (requestGroup.replaceChildren(...requestRows), requestGroup) : requestEmpty,
         el("h2", { class: "block" }, "Invite Someone"),
         invite);
     }
