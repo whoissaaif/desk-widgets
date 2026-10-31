@@ -42,8 +42,11 @@ Steps are in `server/README.md`.
 Blocker found: the repo is private, and on a free GitHub account Pages only serves public repos
 (release downloads also need a public repo). So the site can't go live until:
 
-- [ ] **You decide:** make the repo public (the plan's intent) or use GitHub Pro
-- [ ] **You:** merge `community-widgets` into `main` (Pages serves `docs/` from `main`)
+- [x] **You:** made the repo public and merged PR #1 into `main`
+- [x] GitHub Pages serves `docs/` from `main`: https://whoissaaif.github.io/desk-widgets/ (all pages
+      load and point at the project)
+- [x] Release v1.0.0 with `DeskWidgets.exe` (SHA-256 `728cbe29...`): the site's Download link
+      resolves to it and an anonymous download is byte-identical
 
 - [x] Supabase project `desk-widgets` (ref `vtgsbgkjleyqlxgjdvqy`, Sydney, free tier), created
       with the database password typed by you; "expose new tables" off
@@ -58,22 +61,21 @@ Blocker found: the repo is private, and on a free GitHub account Pages only serv
       invite email to set up the sign-in
 - [x] Project URL and publishable key in `docs/config.js` and `src/Community.cs`; the app reads
       the live (empty) gallery
-- [ ] **Later:** the function still uses the deprecated `SUPABASE_SERVICE_ROLE_KEY`; move to
-      `SUPABASE_SECRET_KEYS` before Supabase removes legacy keys
-- [ ] **Claude** (after you confirm, since it's public): turn on GitHub Pages for `docs/`
-- [ ] **Claude** (after you confirm): publish a GitHub Release with `DeskWidgets.exe`
+- [x] The function reads `SUPABASE_SECRET_KEYS` (legacy key only as a fallback)
+- [ ] **Claude:** redeploy the `invite` function with that change (dashboard editor; needs the
+      browser connection)
 - [ ] **Claude:** live test end to end: upload `samples/HelloWidget.cs` on the website, approve it
       on `admin.html`, Get from Explore (website and app), update to a version 2, uninstall
 
 ## 4. Smaller follow-ups
 
-- [ ] **You decide, Claude builds:** emoji in Calendar event titles show as "□□" (GDI+ can't
-      draw emoji). Option A: strip them (quick). Option B: render text with emoji support
-      (bigger).
+- [x] Emoji in widget labels (calendar, reminders) draw in Segoe UI Emoji on the text baseline
+      instead of boxes
 - [ ] **Claude:** live-test light mode (library, menus, dialogs). Needs you to switch Windows to
       light mode, or OK for Claude to switch it and back.
-- [ ] **Claude:** cache Explore previews on disk (`%LOCALAPPDATA%\DeskWidgets\previews`) so
-      they aren't downloaded every time the window opens
+- [x] Explore previews are fetched once per approved version and kept in
+      `%LOCALAPPDATA%\DeskWidgets\previews` (7 checks: disk hit, no-preview marker, tampered
+      file refetched, prune)
 - [ ] **Claude:** right-click test on a community widget that sits on the desktop (its own menu
       items, e.g. Hello's "Say Hi"); blocked last time by an app window covering it
 
