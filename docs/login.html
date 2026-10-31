@@ -60,7 +60,7 @@
         const email = el("input", { class: "input", type: "email", id, autocomplete: "email", required: true });
         const answer = el("div");
         const submit = el("button", { class: "button grey", type: "submit" }, buttonText);
-        const form = el("form", { class: "form", hidden: true, onsubmit: async e => {
+        const form = el("form", { class: "form reveal", onsubmit: async e => {
             e.preventDefault();
             submit.disabled = true;
             const db = await supabase();
@@ -75,7 +75,7 @@
           el("div", { class: "field" }, el("label", { for: id }, "Email"), email, el("span", { class: "hint" }, hint)),
           el("div", {}, submit),
           answer);
-        form.open = () => { form.hidden = false; email.focus(); };
+        form.open = () => { form.classList.add("open"); email.focus(); };
         return form;
       }
       const here = new URL(next, location.href).href;
@@ -89,7 +89,7 @@
         "If that address has an account, an email to change your password is on its way. It works once, for an hour.");
       const show = form => e => {
         e.preventDefault();
-        (form === linkForm ? forgotForm : linkForm).hidden = true;
+        (form === linkForm ? forgotForm : linkForm).classList.remove("open");
         form.open();
       };
 

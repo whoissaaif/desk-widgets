@@ -122,9 +122,9 @@ async function accountNav(host, current) {
     toast("You're signed in as " + who.profile.username + ".");
   }
   const name = who.profile ? who.profile.username : who.user.email;
-  const close = () => { menu.hidden = true; button.setAttribute("aria-expanded", "false"); };
+  const close = () => { menu.classList.remove("open"); button.setAttribute("aria-expanded", "false"); };
   const item = (href, text) => el("a", { role: "menuitem", href }, text);
-  const menu = el("div", { class: "menu", role: "menu", hidden: true },
+  const menu = el("div", { class: "menu", role: "menu" },
     el("div", { class: "who" }, avatar(who.profile, 40),
       el("div", {}, el("div", { class: "t-headline" }, name), el("div", { class: "t-caption" }, who.admin ? "Owner" : "Signed in"))),
     who.profile ? item("upload.html#uploads", "Your Uploads") : null,
@@ -139,13 +139,13 @@ async function accountNav(host, current) {
   const button = el("button", { type: "button", class: "avatar-button", "aria-haspopup": "menu", "aria-expanded": "false",
     "aria-label": "Account: " + name, onclick: e => {
       e.stopPropagation();
-      const open = menu.hidden;
-      menu.hidden = !open;
+      const open = !menu.classList.contains("open");
+      if (open) menu.classList.add("open"); else menu.classList.remove("open");
       button.setAttribute("aria-expanded", String(open));
       if (open) menu.querySelector("[role=menuitem]").focus();
     } }, avatar(who.profile, 28));
   document.addEventListener("click", e => { if (!menu.contains(e.target)) close(); });
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && !menu.hidden) { close(); button.focus(); } });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && menu.classList.contains("open")) { close(); button.focus(); } });
   host.replaceChildren(
     who.admin ? el("a", { class: "link", href: "admin.html", "aria-current": current === "admin" ? "page" : null }, "Admin") : null,
     button, menu);
@@ -167,6 +167,7 @@ export function toast(text, later = false) {
   if (later) { sessionStorage.setItem("dw-toast", text); return; }
   const t = el("div", { class: "toast", role: "status" }, text);
   document.body.append(t);
+  requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add("in")));
   setTimeout(() => t.classList.add("gone"), 4000);
   setTimeout(() => t.remove(), 4600);
 }

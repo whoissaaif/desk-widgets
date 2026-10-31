@@ -74,6 +74,75 @@ namespace DeskWidgets
         protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
     }
 
+    // A scroll panel with smooth mouse-wheel interpolation: intercepts WM_MOUSEWHEEL and eases
+    // toward the target position instead of jumping. Scrollbar drags and programmatic scrolls stay
+    // instant. Used for the library window's content area.
+    sealed class SmoothPanel : Panel
+    {
+        readonly Timer anim = new Timer { Interval = 16 };
+        float target;
+        bool animating;
+
+        public SmoothPanel()
+        {
+            anim.Tick += OnTick;
+        }
+
+        float MaxScroll
+        {
+            get
+            {
+                int max = AutoScrollMinSize.Height - ClientSize.Height;
+                return max > 0 ? max : 0;
+            }
+        }
+
+        void OnTick(object s, EventArgs e)
+        {
+            float current = -AutoScrollPosition.Y;
+            target = Math.Min(target, MaxScroll);
+            float diff = target - current;
+            if (Math.Abs(diff) < 0.5f)
+            {
+                AutoScrollPosition = new Point(0, (int)Math.Round(target));
+                anim.Stop();
+                animating = false;
+                return;
+            }
+            AutoScrollPosition = new Point(0, (int)Math.Round(current + diff * 0.25f));
+        }
+
+        public void ScrollToTop()
+        {
+            anim.Stop();
+            animating = false;
+            target = 0;
+            AutoScrollPosition = Point.Empty;
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_MOUSEWHEEL = 0x020A;
+            if (m.Msg == WM_MOUSEWHEEL)
+            {
+                int delta = (short)(m.WParam.ToInt64() >> 16);
+                float step = -(delta / 120f) * WidgetWindow.Px(60);
+                if (!animating) target = -AutoScrollPosition.Y;
+                target = Math.Max(0, Math.Min(target + step, MaxScroll));
+                animating = true;
+                anim.Start();
+                return;
+            }
+            base.WndProc(ref m);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) anim.Dispose();
+            base.Dispose(disposing);
+        }
+    }
+
     // A rounded text field (§8.7): a borderless TextBox inside a painted 8 px-radius frame that
     // turns blue while focused.
     sealed class TextField : Control
