@@ -30,7 +30,7 @@ alter table public.profiles drop constraint if exists profiles_bio_check;
 alter table public.profiles add constraint profiles_bio_check check (length(bio) <= 160);
 alter table public.profiles drop constraint if exists profiles_avatar_check;
 alter table public.profiles add constraint profiles_avatar_check
-  check (avatar is null or (length(avatar) <= 200000 and avatar ~ '^[A-Za-z0-9+/=]+$'));
+  check (avatar is null or (length(avatar) <= 6700000 and avatar ~ '^[A-Za-z0-9+/=]+$'));
 
 -- People asking to upload. Written only through request_access(); read and decided by the owner.
 create table if not exists public.access_requests (
