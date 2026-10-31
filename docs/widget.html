@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Widget · Desk Widgets</title>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <main class="content section" id="page"></main>
+
+  <script type="module">
+    import { nav, el, art, getButton, supabase, configured, categoryName, isValidId, notice, formatDate, installUrl, visibleSource } from "./assets/site.js";
+
+    nav(null);
+    const page = document.getElementById("page");
+    const id = new URLSearchParams(location.search).get("id");
+
+    async function load() {
+      if (!isValidId(id)) { page.replaceChildren(notice("This link doesn't point to a widget.", true)); return; }
+      if (!configured) { page.replaceChildren(notice("The community gallery isn't connected yet.")); return; }
+      try {
+        const db = await supabase();
+        // Only approved versions are readable without an account (RLS), newest first.
+        const { data: versions, error } = await db.from("versions")
+          .select("version, name, category, description, api_version, source, preview, sha256, reviewed_at")
+          .eq("widget_id", id).eq("status", "approved").order("version", { ascending: false });
+        if (error) throw error;
+        if (!versions || !versions.length) { page.replaceChildren(notice("This widget isn't available.", true)); return; }
+        const { data: author } = await db.from("explore").select("author").eq("id", id).maybeSingle();
+        show(versions, author ? author.author : "");
+      } catch (e) {
+        page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true));
+      }
+    }
+
+    function show(versions, author) {
+      const w = versions[0];
+      document.title = w.name + " · Desk Widgets";
+      const kb = Math.max(1, Math.round(new TextEncoder().encode(w.source).length / 1024));
+      const fact = (label, value, unit) => el("div", {}, el("div", { class: "label" }, label), el("div", { class: "value" }, value), el("div", { class: "unit" }, unit));
+
+      page.replaceChildren(
+        el("div", { class: "product" },
+          art(w.preview, w.name),
+          el("div", {},
+            el("h1", { class: "t-large" }, w.name),
+            el("p", { class: "subtitle" }, w.description || categoryName(w.category)),
+            el("p", { class: "t-reduced" }, "By " + author),
+            el("div", { class: "actions" },
+              el("a", { class: "button", href: installUrl(id, w.version) }, "Get"),
+              el("a", { class: "more", href: "#source" }, "View source")),
+            el("p", { class: "t-caption" }, "Get opens Desk Widgets. It checks this exact code and asks before installing."))),
+        el("div", { class: "info", role: "list" },
+          fact("Version", String(w.version), "latest"),
+          fact("Category", categoryName(w.category), ""),
+          fact("Reviewed", formatDate(w.reviewed_at), "by the owner"),
+          fact("Size", kb + " KB", "C# source"),
+          fact("Needs", "API " + w.api_version, "Desk Widgets")),
+        el("h2", { class: "block", id: "source" }, "Source"),
+        el("p", { class: "t-reduced" }, "This is the code that runs on your PC. SHA-256 " + w.sha256),
+        el("pre", { class: "code" }, visibleSource(w.source)),
+        el("h2", { class: "block" }, "Version history"),
+        el("div", { class: "group" }, versions.map(v =>
+          el("div", { class: "row" },
+            el("div", { class: "main" }, el("div", { class: "t-headline" }, "Version " + v.version),
+              el("div", { class: "t-reduced" }, "Reviewed " + formatDate(v.reviewed_at))),
+            getButton(id, v.version, v === w ? "Get" : "Get v" + v.version)))));
+    }
+    load();
+  </script>
+</body>
+</html>

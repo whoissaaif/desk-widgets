@@ -3,31 +3,42 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
+using System.Threading;
 
 namespace DeskWidgets.Widgets
 {
-    // Base for the Apple-style card widgets: small (170 x 170 pt) or medium (364 x 170 pt),
-    // 22 pt corner radius, 16 pt margins, light or dark appearance, three sizes.
+    // Base for the Apple-style card widgets: small (170 x 170 pt), medium (364 x 170 pt) or large (364 x 382 pt),
+    // 22 pt corner radius, 16 pt margins, dark / light / vibrant appearance, three sizes.
     // Subclasses lay out in points and call P() to convert; everything is drawn on demand.
     abstract class CardWidget : WidgetWindow
     {
         protected sealed class Palette
         {
             public Color Bg, Fg, Fg2, Fill, Sep, Red, Orange, Yellow, Green, Blue, Purple;
+            public Color OnAccent; // glyphs and text drawn on top of an accent-coloured fill
         }
 
         protected static readonly Palette DarkPalette = new Palette
         {
             Bg = Rgb(0x1C1C1E), Fg = Color.White, Fg2 = Rgb(0x98989F), Fill = Rgb(0x2C2C2E), Sep = Rgb(0x38383A),
             Red = Rgb(0xFF453A), Orange = Rgb(0xFF9F0A), Yellow = Rgb(0xFFD60A), Green = Rgb(0x30D158),
-            Blue = Rgb(0x0A84FF), Purple = Rgb(0xBF5AF2)
+            Blue = Rgb(0x0A84FF), Purple = Rgb(0xBF5AF2), OnAccent = Color.White
         };
 
         protected static readonly Palette LightPalette = new Palette
         {
             Bg = Color.White, Fg = Color.Black, Fg2 = Rgb(0x6E6E73), Fill = Rgb(0xF2F2F7), Sep = Rgb(0xE5E5EA),
-            Red = Rgb(0xFF3B30), Orange = Rgb(0xFF9500), Yellow = Rgb(0xF5B800), Green = Rgb(0x34C759),
-            Blue = Rgb(0x007AFF), Purple = Rgb(0xAF52DE)
+            Red = Rgb(0xFF3B30), Orange = Rgb(0xFF9500), Yellow = Rgb(0xFFCC00), Green = Rgb(0x34C759),
+            Blue = Rgb(0x007AFF), Purple = Rgb(0xAF52DE), OnAccent = Color.White
+        };
+
+        // macOS "vibrant" desktop widgets: frosted wallpaper behind, everything in white.
+        protected static readonly Palette VibrantPalette = new Palette
+        {
+            Bg = Color.FromArgb(40, 255, 255, 255), Fg = Color.White, Fg2 = Color.FromArgb(175, 255, 255, 255),
+            Fill = Color.FromArgb(40, 255, 255, 255), Sep = Color.FromArgb(55, 255, 255, 255),
+            Red = Color.White, Orange = Color.White, Yellow = Color.White, Green = Color.White, Blue = Color.White, Purple = Color.White,
+            OnAccent = Rgb(0x2A3B42)
         };
 
         protected static Color Rgb(int rgb) { return Color.FromArgb(unchecked((int)0xFF000000) | rgb); }
@@ -35,21 +46,28 @@ namespace DeskWidgets.Widgets
         static readonly int[] ScaleOptions = { 85, 100, 125 };
         static readonly string[] ScaleNames = { "Compact", "Standard", "Large" };
 
-        readonly bool medium;
+        protected enum CardSize { Small, Medium, Large }
+
+        readonly CardSize size;
         readonly Dictionary<string, Font> fonts = new Dictionary<string, Font>();
         float fontScale;
 
-        protected CardWidget(Section settings, bool medium) : base(settings)
+        protected CardWidget(Section settings, bool medium) : this(settings, medium ? CardSize.Medium : CardSize.Small) { }
+
+        protected CardWidget(Section settings, CardSize size) : base(settings)
         {
-            this.medium = medium;
+            this.size = size;
         }
 
-        protected bool IsDark { get { return Settings.Get("face", "dark") != "light"; } }
-        protected Palette Pal { get { return IsDark ? DarkPalette : LightPalette; } }
+        protected string Face { get { return Settings.Get("face", DefaultFace); } }
+        protected virtual string DefaultFace { get { return "dark"; } }
+        protected bool IsVibrant { get { return Face == "vibrant"; } }
+        protected bool IsDark { get { return Face != "light"; } }
+        protected Palette Pal { get { return IsVibrant ? VibrantPalette : Face == "light" ? LightPalette : DarkPalette; } }
         protected float Zoom { get { return Dpi * Settings.GetInt("scale", 100) / 100f; } }
         protected float P(float pt) { return pt * Zoom; }
-        protected float W { get { return P(medium ? 364 : 170); } }
-        protected float H { get { return P(170); } }
+        protected float W { get { return P(size == CardSize.Small ? 170 : 364); } }
+        protected float H { get { return P(size == CardSize.Large ? 382 : 170); } }
 
         protected override Size Measure()
         {
@@ -68,10 +86,43 @@ namespace DeskWidgets.Widgets
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             Palette pal = Pal;
             using (var card = CardPath())
-            using (var b = new SolidBrush(CardBackground(pal)))
-                g.FillPath(b, card);
+            {
+                if (IsVibrant) DrawFrosted(g, card);
+                else using (var b = new SolidBrush(CardBackground(pal))) g.FillPath(b, card);
+            }
             DrawContent(g, pal);
             g.ResetClip();
+        }
+
+        // Vibrant background: the blurred wallpaper behind the widget, a soft dark tint so white text
+        // stays readable on light wallpapers, and a hairline edge like glass.
+        Bitmap backdrop;
+        Rectangle backdropFor;
+
+        void DrawFrosted(Graphics g, GraphicsPath card)
+        {
+            Size size = Measure();
+            // Library previews have no place on screen yet: they get a neutral stand-in.
+            Rectangle where = IsHandleCreated ? new Rectangle(Location, size) : Rectangle.Empty;
+            if (backdrop == null || where != backdropFor || backdrop.Size != size)
+            {
+                if (backdrop != null) backdrop.Dispose();
+                backdrop = DesktopBackdrop.Blurred(size, where);
+                backdropFor = where;
+            }
+            var state = g.Save();
+            g.SetClip(card);
+            g.DrawImageUnscaled(backdrop, 0, 0);
+            using (var tint = new SolidBrush(Color.FromArgb(70, 20, 24, 28))) g.FillPath(tint, card);
+            using (var frost = new SolidBrush(Color.FromArgb(28, 255, 255, 255))) g.FillPath(frost, card);
+            g.Restore(state);
+            using (var edge = new Pen(Color.FromArgb(60, 255, 255, 255), 1f)) g.DrawPath(edge, card);
+        }
+
+        internal override void BackdropChanged()
+        {
+            if (backdrop != null) { backdrop.Dispose(); backdrop = null; }
+            if (IsVibrant) Render();
         }
 
         // Widgets that cover the card with an image use a dark backing so no light edge shows at the corners.
@@ -80,6 +131,34 @@ namespace DeskWidgets.Widgets
         protected GraphicsPath CardPath()
         {
             return RoundRect(new RectangleF(0, 0, W, H), P(22));
+        }
+
+        // Runs slow work (network, disk, decoding) on a worker thread and hands the result, or the
+        // exception, back on the UI thread. Silently dropped if the widget closed meanwhile.
+        protected void Background<T>(Func<T> work, Action<T, Exception> done)
+        {
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                T result = default(T);
+                Exception error = null;
+                try { result = work(); }
+                catch (Exception ex) { error = ex; }
+                if (IsDisposed || !IsHandleCreated) return;
+                try { BeginInvoke((Action)delegate { if (!IsDisposed) done(result, error); }); }
+                catch (InvalidOperationException) { } // handle destroyed between the check and the call
+            });
+        }
+
+        // Cache file for this widget instance (null in library previews, which never write).
+        protected string CacheFile(string name)
+        {
+            return App.DataDir == null ? null : System.IO.Path.Combine(App.DataDir, "cache", name + "-" + Settings.Name + ".txt");
+        }
+
+        // Appearance menu entries: { setting value, label }. Weather swaps Dark/Light for its sky.
+        protected virtual string[][] AppearanceChoices
+        {
+            get { return new[] { new[] { "dark", "Dark" }, new[] { "light", "Light" }, new[] { "vibrant", "Vibrant" } }; }
         }
 
         // Called after a setting changes: drop caches that depend on it and redraw.
@@ -107,6 +186,22 @@ namespace DeskWidgets.Widgets
             using (var path = RoundRect(r, radius))
             using (var b = new SolidBrush(c))
                 g.FillPath(b, path);
+        }
+
+        // Draws an image desaturated (vibrant mode tones down photos and avatars, like macOS).
+        protected static void DrawGray(Graphics g, Image img, RectangleF dest)
+        {
+            var m = new System.Drawing.Imaging.ColorMatrix(new[]
+            {
+                new[] { 0.30f, 0.30f, 0.30f, 0, 0 }, new[] { 0.59f, 0.59f, 0.59f, 0, 0 }, new[] { 0.11f, 0.11f, 0.11f, 0, 0 },
+                new[] { 0f, 0, 0, 1, 0 }, new[] { 0f, 0, 0, 0, 1 }
+            });
+            using (var attrs = new System.Drawing.Imaging.ImageAttributes())
+            {
+                attrs.SetColorMatrix(m);
+                g.DrawImage(img, new[] { dest.Location, new PointF(dest.Right, dest.Top), new PointF(dest.Left, dest.Bottom) },
+                    new RectangleF(0, 0, img.Width, img.Height), GraphicsUnit.Pixel, attrs);
+            }
         }
 
         protected static void FillCircle(Graphics g, Color c, float cx, float cy, float radius)
@@ -155,7 +250,99 @@ namespace DeskWidgets.Widgets
             var fmt = align == StringAlignment.Far ? TypoRight : align == StringAlignment.Center ? TypoCenter : Typo;
             float left = align == StringAlignment.Far ? x - maxWidth : align == StringAlignment.Center ? x - maxWidth / 2 : x;
             using (var b = new SolidBrush(c))
-                g.DrawString(s, f, b, new RectangleF(left, y, maxWidth, f.GetHeight() * 1.3f), fmt);
+            {
+                if (HasEmoji(s)) LabelWithEmoji(g, s, f, b, left, y, maxWidth, align);
+                else g.DrawString(s, f, b, new RectangleF(left, y, maxWidth, f.GetHeight() * 1.3f), fmt);
+            }
+        }
+
+        // ---- emoji (calendar titles, reminders): GDI+ has no font fallback, so Segoe UI draws them as
+        // boxes. Emoji runs are drawn in Segoe UI Emoji (single-color glyphs in the text color), on the
+        // same baseline as the text around them.
+
+        static bool IsEmojiAt(string s, int i)
+        {
+            char ch = s[i];
+            if (char.IsHighSurrogate(ch)) return true; // everything beyond U+FFFF that people type is emoji
+            return (ch >= 0x2300 && ch <= 0x23FF) || (ch >= 0x2600 && ch <= 0x27BF) || (ch >= 0x2B00 && ch <= 0x2BFF) ||
+                   ch == 0x3030 || ch == 0x303D || ch == 0x3297 || ch == 0x3299;
+        }
+
+        // Joiners and presentation selectors only shape color emoji; drawn on their own they're boxes.
+        static bool IsEmojiFormat(char ch) { return ch == 0x200D || ch == 0xFE0E || ch == 0xFE0F || ch == 0x20E3; }
+
+        static bool HasEmoji(string s)
+        {
+            if (s == null) return false;
+            for (int i = 0; i < s.Length; i++) if (IsEmojiAt(s, i) || IsEmojiFormat(s[i])) return true;
+            return false;
+        }
+
+        Font emojiFont;
+
+        Font EmojiFont(Font like)
+        {
+            if (emojiFont == null || emojiFont.Size != like.Size)
+            {
+                if (emojiFont != null) emojiFont.Dispose();
+                emojiFont = new Font("Segoe UI Emoji", like.Size, FontStyle.Regular, GraphicsUnit.Pixel);
+            }
+            return emojiFont;
+        }
+
+        // Runs sit side by side, so a run's trailing space must count ("Call mum " + bell).
+        static readonly StringFormat RunFormat = MakeRunFormat();
+
+        static StringFormat MakeRunFormat()
+        {
+            var f = (StringFormat)StringFormat.GenericTypographic.Clone();
+            f.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces | StringFormatFlags.NoWrap;
+            return f;
+        }
+
+        static float Ascent(Font f)
+        {
+            return f.Size * f.FontFamily.GetCellAscent(f.Style) / f.FontFamily.GetEmHeight(f.Style);
+        }
+
+        void LabelWithEmoji(Graphics g, string s, Font f, Brush b, float left, float y, float maxWidth, StringAlignment align)
+        {
+            Font emoji = EmojiFont(f);
+            // Split into runs of text and emoji, dropping the invisible shaping characters.
+            var runs = new List<KeyValuePair<string, bool>>();
+            var cur = new System.Text.StringBuilder();
+            bool curEmoji = false;
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (IsEmojiFormat(s[i])) continue;
+                bool e = IsEmojiAt(s, i);
+                int len = char.IsHighSurrogate(s[i]) && i + 1 < s.Length ? 2 : 1;
+                if (cur.Length > 0 && e != curEmoji) { runs.Add(new KeyValuePair<string, bool>(cur.ToString(), curEmoji)); cur.Clear(); }
+                curEmoji = e;
+                cur.Append(s, i, len);
+                i += len - 1;
+            }
+            if (cur.Length > 0) runs.Add(new KeyValuePair<string, bool>(cur.ToString(), curEmoji));
+
+            Func<KeyValuePair<string, bool>, float> width = r =>
+                g.MeasureString(r.Key, r.Value ? emoji : f, PointF.Empty, RunFormat).Width;
+            float total = 0;
+            foreach (var r in runs) total += width(r);
+            float x = left;
+            if (total <= maxWidth && align == StringAlignment.Far) x = left + maxWidth - total;
+            else if (total <= maxWidth && align == StringAlignment.Center) x = left + (maxWidth - total) / 2;
+
+            float baseline = y + Ascent(f), right = left + maxWidth;
+            foreach (var r in runs)
+            {
+                Font font = r.Value ? emoji : f;
+                float w = width(r), top = baseline - Ascent(font);
+                if (x + w <= right) { g.DrawString(r.Key, font, b, x, top, RunFormat); x += w; continue; }
+                // Doesn't fit: text is cut with an ellipsis in the space left; an emoji is replaced by one.
+                if (!r.Value) g.DrawString(r.Key, f, b, new RectangleF(x, top, Math.Max(0, right - x), f.GetHeight() * 1.3f), Typo);
+                else g.DrawString("…", f, b, x, baseline - Ascent(f), StringFormat.GenericTypographic);
+                break;
+            }
         }
 
         protected void Label(Graphics g, string s, Font f, Color c, float x, float y)
@@ -186,8 +373,12 @@ namespace DeskWidgets.Widgets
             BuildWidgetMenu(menu);
             menu.AddSeparator();
             var look = menu.AddSubmenu("Appearance");
-            look.AddChoice("Dark", IsDark, delegate { Settings.Set("face", "dark"); Changed(); });
-            look.AddChoice("Light", !IsDark, delegate { Settings.Set("face", "light"); Changed(); });
+            string face = Face;
+            foreach (var choice in AppearanceChoices)
+            {
+                string id = choice[0];
+                look.AddChoice(choice[1], face == id, delegate { Settings.Set("face", id); Changed(); });
+            }
             var size = menu.AddSubmenu("Size");
             int cur = Settings.GetInt("scale", 100);
             for (int i = 0; i < ScaleOptions.Length; i++)
@@ -205,6 +396,8 @@ namespace DeskWidgets.Widgets
             {
                 foreach (var f in fonts.Values) f.Dispose();
                 fonts.Clear();
+                if (emojiFont != null) { emojiFont.Dispose(); emojiFont = null; }
+                if (backdrop != null) { backdrop.Dispose(); backdrop = null; }
             }
             base.Dispose(disposing);
         }

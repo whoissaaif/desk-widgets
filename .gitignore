@@ -10,3 +10,6 @@ widgets.ini
 
 # generated
 graphify-out/
+
+# server tests
+node_modules/

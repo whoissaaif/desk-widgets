@@ -128,7 +128,7 @@ namespace DeskWidgets.Widgets
             PointF pc = PlayCenter, rc = ResetCenter;
             float br = P(14);
             FillCircle(g, pal.Orange, pc.X, pc.Y, br);
-            using (var white = new SolidBrush(Color.White))
+            using (var white = new SolidBrush(pal.OnAccent))
             {
                 if (running)
                 {
@@ -163,7 +163,7 @@ namespace DeskWidgets.Widgets
             foreach (int each in Lengths)
             {
                 int min = each;
-                len.AddChoice(min + " minutes", cur == min, delegate { Settings.Set("length", min); Reset(); });
+                len.AddChoice(min + " Minutes", cur == min, delegate { Settings.Set("length", min); Reset(); });
             }
         }
     }

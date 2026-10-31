@@ -307,16 +307,21 @@ namespace DeskWidgets.Widgets
 
         protected override void BuildWidgetMenu(PopupMenu menu)
         {
-            menu.Add("Refresh now", Fetch);
-            if (data != null) menu.Add("Open profile on GitHub", delegate { OnWidgetClick(Point.Empty); });
-            menu.Add(Connected ? "Change account…" : "Connect GitHub…", Connect);
+            menu.Add("Refresh Now", Fetch);
+            if (data != null) menu.Add("Open Profile on GitHub", delegate { OnWidgetClick(Point.Empty); });
+            menu.Add(Connected ? "Change Account…" : "Connect GitHub…", Connect);
             if (Connected)
-                menu.Add("Disconnect", delegate { Settings.Remove("token"); Settings.Remove("auth"); Fetch(); });
+                menu.AddDestructive("Disconnect", delegate { Settings.Remove("token"); Settings.Remove("auth"); Fetch(); });
         }
 
         // ---------- drawing ----------
         static readonly Color[] DarkLevels = { Rgb(0x2C2C2E), Rgb(0x0E4429), Rgb(0x006D32), Rgb(0x26A641), Rgb(0x39D353) };
         static readonly Color[] LightLevels = { Rgb(0xEBEDF0), Rgb(0x9BE9A8), Rgb(0x40C463), Rgb(0x30A14E), Rgb(0x216E39) };
+        static readonly Color[] VibrantLevels =
+        {
+            Color.FromArgb(36, 255, 255, 255), Color.FromArgb(90, 255, 255, 255), Color.FromArgb(140, 255, 255, 255),
+            Color.FromArgb(195, 255, 255, 255), Color.FromArgb(245, 255, 255, 255)
+        };
 
         protected override void DrawContent(Graphics g, Palette pal)
         {
@@ -338,7 +343,7 @@ namespace DeskWidgets.Widgets
                     clip.AddEllipse(m, m, av, av);
                     var saved = g.Save();
                     g.SetClip(clip);
-                    g.DrawImage(avatar, new RectangleF(m, m, av, av));
+                    if (IsVibrant) DrawGray(g, avatar, new RectangleF(m, m, av, av)); else g.DrawImage(avatar, new RectangleF(m, m, av, av));
                     g.Restore(saved);
                 }
             else FillCircle(g, pal.Fill, m + av / 2, m + av / 2, av / 2);
@@ -356,7 +361,7 @@ namespace DeskWidgets.Widgets
             Label(g, "day streak", F(11, "regular"), pal.Fg2, W - m, m + P(23), streakW, StringAlignment.Far);
 
             // Contribution graph: weeks as columns, Sunday at the top.
-            Color[] levels = IsDark ? DarkLevels : LightLevels;
+            Color[] levels = IsVibrant ? VibrantLevels : IsDark ? DarkLevels : LightLevels;
             float gap = P(2.2f), top = P(60), cell = (W - m * 2 - gap * (Weeks - 1)) / Weeks, r = Math.Max(1f, P(2));
             int n = d.Levels.Count;
             for (int i = 0; i < n; i++)

@@ -7,7 +7,7 @@ using System.Text;
 namespace DeskWidgets
 {
     // Tiny INI store: one [section] per widget instance.
-    sealed class Section
+    public sealed class Section
     {
         public readonly string Name;
         internal readonly Dictionary<string, string> Values = new Dictionary<string, string>();

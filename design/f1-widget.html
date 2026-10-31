@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F1 widget, nine ways</title>
+<style>
+/* Same visual world as essential-widgets.html: a dark page, a desktop scene on Apple's 170 pt grid,
+   then the notes. The widgets reuse that page's card, type and palette rules exactly. */
+:root {
+  --page: #141417;
+  --panel: #1c1c20;
+  --ink: #f2f2f5;
+  --muted: #a2a2ab;
+  --line: #2d2d33;
+  --accent: #ff9f0a;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+  --u: 170px;
+  --g: calc(var(--u) * 24 / 170);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--page); color: var(--ink); font: 15px/1.5 var(--font-body); -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 72px; display: flex; flex-direction: column; gap: 40px; }
+header { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: end; justify-content: space-between; }
+header .intro { max-width: 62ch; display: flex; flex-direction: column; gap: 8px; }
+h1 { font: 700 34px/1.15 var(--font-display); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+h2 { font: 600 22px/1.25 var(--font-display); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.seg button { font: 500 13px/1 var(--font-body); color: var(--muted); background: none; border: 0; padding: 9px 14px; border-radius: 7px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: #3a3a40; color: var(--ink); }
+.seg button:hover { color: var(--ink); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- desktop scene ---------- */
+.desk { position: relative; border-radius: 20px; overflow: hidden; padding: 40px; display: flex; justify-content: center; background: #1f3b4d; isolation: isolate; }
+.desk > svg.wall { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; }
+.grid { display: grid; gap: var(--g); grid-template-columns: repeat(4, var(--u)); grid-auto-rows: var(--u); grid-auto-flow: dense; }
+.scene-note { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--muted); }
+.scene-note b { color: var(--ink); font-weight: 600; }
+
+/* ---------- appearances: identical to the other widgets ---------- */
+.desk[data-mode="light"] {
+  --w-bg: #ffffff; --w-fg: #000000; --w-fg2: #6e6e73; --w-fill: #f2f2f7; --w-sep: #e5e5ea;
+  --red: #ff3b30; --yellow: #f5b800; --green: #34c759;
+  --w-shadow: 0 10px 30px rgba(0,0,0,.28);
+  --hard: #c7c7cc;
+}
+.desk[data-mode="dark"] {
+  --w-bg: #1c1c1e; --w-fg: #ffffff; --w-fg2: #98989f; --w-fill: #2c2c2e; --w-sep: #38383a;
+  --red: #ff453a; --yellow: #ffd60a; --green: #30d158;
+  --w-shadow: 0 10px 30px rgba(0,0,0,.4);
+  --hard: #f2f2f7;
+}
+.desk[data-mode="vibrant"] {
+  --w-bg: rgba(255,255,255,.16); --w-fg: #ffffff; --w-fg2: rgba(255,255,255,.66); --w-fill: rgba(255,255,255,.14);
+  --w-sep: rgba(255,255,255,.2);
+  --red: #fff; --yellow: #fff; --green: #fff; --hard: #fff;
+  --w-shadow: none;
+}
+/* Team colours are data (they say whose car it is), always next to the team or driver name. */
+.desk { --mcl: #ff8000; --fer: #e8002d; --rbr: #3671c6; --mer: #00a19c; --wil: #1868db; --ast: #229971; }
+.desk[data-mode="dark"] { --mer: #27f4d2; --wil: #64c4ff; }
+.desk[data-mode="vibrant"] { --mcl: #fff; --fer: #fff; --rbr: #fff; --mer: #fff; --wil: #fff; --ast: #fff; }
+
+.w {
+  font-size: calc(var(--u) * 16 / 170); /* 1em = 16 pt widget margin */
+  width: 100%; height: 100%;
+  border-radius: calc(var(--u) * 22 / 170);
+  background: var(--w-bg); color: var(--w-fg); box-shadow: var(--w-shadow);
+  padding: 1em; overflow: hidden; position: relative;
+  font-family: var(--font-body); line-height: 1.25; font-variant-numeric: tabular-nums;
+}
+.desk[data-mode="vibrant"] .w { -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); }
+.m { grid-column: span 2; }
+.L { grid-column: span 2; grid-row: span 2; }
+.cap { font-size: .6875em; }   /* 11 pt, the floor */
+.sub { font-size: .8125em; }   /* 13 pt */
+.body { font-size: .9375em; }  /* 15 pt */
+.fg2 { color: var(--w-fg2); }
+.bold { font-weight: 600; }
+.red { color: var(--red); }
+.up { text-transform: uppercase; letter-spacing: .02em; }
+.row { display: flex; align-items: center; gap: .5em; }
+.between { justify-content: space-between; }
+.col { display: flex; flex-direction: column; }
+.ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.big { font: 600 1.75em/1 var(--font-display); letter-spacing: -0.02em; }
+.huge { font: 600 2.375em/1 var(--font-display); letter-spacing: -0.025em; }
+.ttl { font: 600 1.25em/1.1 var(--font-display); letter-spacing: -0.01em; }
+.trk { color: var(--w-fg2); }
+.trk path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.trk .start { fill: var(--red); stroke: var(--w-bg); stroke-width: 1.2; }
+.desk[data-mode="vibrant"] .trk .start { stroke: none; }
+.tb { width: .1875em; align-self: stretch; border-radius: 2px; background: var(--t); flex: none; }
+
+/* Standings rows (drivers and constructors) */
+.list { display: flex; flex-direction: column; }
+.st { display: grid; grid-template-columns: 1.15em .1875em minmax(0, 1fr) auto; gap: .5em; align-items: center; padding: .3em 0; border-bottom: 1px solid var(--w-sep); font-size: .8125em; }
+.st:last-child { border-bottom: 0; }
+.st .p { color: var(--w-fg2); font-weight: 600; text-align: right; }
+.st .tb { height: 1.1em; width: .23em; align-self: center; }
+.st .pts { font-weight: 600; text-align: right; }
+.st .gap { color: var(--w-fg2); font-weight: 400; display: inline-block; min-width: 2.6em; text-align: right; margin-left: .5em; }
+
+/* A: countdown */
+.cd { display: flex; flex-direction: column; justify-content: space-between; }
+.cd .trk { width: 100%; height: 3.1em; display: block; }
+
+/* B: my driver */
+.me { display: flex; flex-direction: column; justify-content: space-between; }
+.me .num { font: 600 2.75em/1 var(--font-display); letter-spacing: -0.03em; }
+.me .stats { display: grid; grid-template-columns: 1fr 1fr; gap: .25em; }
+
+/* C: race weekend */
+.wk { display: grid; grid-template-columns: 1fr 1.15fr; gap: 1em; }
+.wk .left { display: flex; flex-direction: column; justify-content: space-between; min-width: 0; }
+.sess { display: flex; flex-direction: column; justify-content: center; }
+.ss { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) auto; align-items: center; gap: .4em; padding: .28em 0; border-bottom: 1px solid var(--w-sep); font-size: .8125em; }
+.ss:last-child { border-bottom: 0; }
+.ss .k { font-weight: 600; }
+.ss[data-s="done"] { color: var(--w-fg2); }
+.ss[data-s="done"] .k { font-weight: 400; }
+.ss[data-s="next"] .k, .ss[data-s="live"] .k { color: var(--red); }
+.ss .st8 { font-size: .846em; color: var(--w-fg2); }
+.ss[data-s="live"] .st8, .ss[data-s="next"] .st8 { color: var(--red); font-weight: 600; }
+
+/* E: live timing */
+.live .pill { background: var(--red); color: #fff; font-weight: 600; border-radius: 99px; padding: .1em .5em; letter-spacing: .04em; }
+.desk[data-mode="vibrant"] .live .pill { color: #3a5560; }
+.live .lt { display: grid; grid-template-columns: 1.15em .23em 2.4em minmax(0, 1fr) 1.35em 4.4em; gap: .5em; align-items: center; padding: .24em 0; border-bottom: 1px solid var(--w-sep); font-size: .8125em; }
+.live .lt:last-child { border-bottom: 0; }
+.live .lt .tb { height: 1.1em; align-self: center; }
+.live .lt .iv { text-align: right; font-weight: 600; }
+.tyre { width: 1.35em; height: 1.35em; border-radius: 50%; border: .17em solid var(--c); display: grid; place-items: center; font-size: .75em; font-weight: 700; line-height: 1; }
+.tyre[data-c="S"] { --c: var(--red); } .tyre[data-c="M"] { --c: var(--yellow); } .tyre[data-c="H"] { --c: var(--hard); }
+
+/* F: constructors */
+.cons .cr { display: grid; grid-template-columns: 6.2em minmax(0, 1fr) 2.4em; gap: .6em; align-items: center; font-size: .8125em; padding: .26em 0; }
+.cons .bar { height: .45em; border-radius: 99px; background: var(--w-fill); overflow: hidden; }
+.cons .bar b { display: block; height: 100%; border-radius: inherit; background: var(--t); }
+.cons .cr .pts { text-align: right; font-weight: 600; }
+
+/* G: race hub (large) */
+.hub { display: flex; flex-direction: column; gap: .75em; }
+.hub-top { display: grid; grid-template-columns: minmax(0, 1fr) 6.5em; gap: .75em; align-items: center; }
+.hub-top .trk { width: 100%; height: 4em; }
+.strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: .25em; background: var(--w-fill); border-radius: .625em; padding: .5em .25em; text-align: center; }
+.strip > div { display: flex; flex-direction: column; gap: .1em; min-width: 0; }
+.strip [data-s="done"] { color: var(--w-fg2); }
+.strip [data-s="next"] .k, .strip [data-s="live"] .k { color: var(--red); }
+.hub .sep { height: 1px; background: var(--w-sep); }
+
+/* H: podium */
+.pod { display: flex; flex-direction: column; justify-content: space-between; }
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: .25em; align-items: end; }
+.steps > div { display: flex; flex-direction: column; align-items: center; gap: .25em; }
+.steps .who { font-size: .8125em; font-weight: 600; display: flex; align-items: center; gap: .3em; }
+.steps .who i { width: .45em; height: .45em; border-radius: 50%; background: var(--t); }
+.steps .blk { width: 100%; background: var(--w-fill); border-radius: .375em .375em .125em .125em; display: grid; place-items: start center; padding-top: .3em; font: 600 1em/1 var(--font-display); color: var(--w-fg2); }
+.steps .s1 .blk { height: 3.1em; color: var(--w-fg); }
+.steps .s2 .blk { height: 2.2em; }
+.steps .s3 .blk { height: 1.6em; }
+
+/* I: title fight */
+.tf { display: flex; flex-direction: column; justify-content: space-between; }
+.split { display: flex; height: .5em; gap: 2px; border-radius: 99px; overflow: hidden; }
+.split b { display: block; height: 100%; }
+
+/* ---------- notes below the scene ---------- */
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.vc { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+.vc .h { display: flex; align-items: baseline; gap: 8px; }
+.vc .h b { font: 600 15px/1.3 var(--font-display); }
+.vc .h span { font-size: 12px; color: var(--muted); }
+.vc p { font-size: 14px; color: var(--muted); }
+.vc .k { font: 600 12px/1 var(--font-body); color: var(--accent); width: 20px; height: 20px; border-radius: 50%; background: rgba(255,159,10,.14); display: inline-grid; place-items: center; flex: none; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 760px; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; background: #19191c; }
+tr:last-child td { border-bottom: 0; }
+td.n { font-weight: 600; white-space: nowrap; }
+.decide { display: flex; flex-direction: column; gap: 12px; max-width: 72ch; }
+.decide ol { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; }
+.decide li span { color: var(--muted); }
+.vlabel { position: absolute; top: -9px; left: -9px; width: 20px; height: 20px; border-radius: 50%; background: #fff; color: #000; font: 700 11px/20px var(--font-body); text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,.35); z-index: 2; }
+.slot { position: relative; }
+.slot.m { grid-column: span 2; } .slot.L { grid-column: span 2; grid-row: span 2; }
+
+@media (max-width: 900px) {
+  .grid { grid-template-columns: repeat(2, var(--u)); }
+  .cards { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  :root { --u: calc((100vw - 32px - 32px) / (2 + 24 / 170)); }
+  .wrap { padding: 28px 16px 56px; }
+  .desk { padding: 16px; border-radius: 16px; }
+  h1 { font-size: 28px; }
+  .cards { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cons .bar b, .split b { transition: width .6s ease; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="intro">
+      <h1>F1 widget, nine ways.</h1>
+      <p class="muted">Variations for a Formula 1 widget in the Desk Widgets style: Apple's small, medium and large sizes, 16 pt margins, 11 pt minimum text, one accent (system red) and team colours only as data beside a name. Switch the appearance to see light, dark and vibrant.</p>
+    </div>
+    <div class="seg" role="group" aria-label="Widget appearance">
+      <button type="button" data-mode="light" aria-pressed="false">Light</button>
+      <button type="button" data-mode="dark" aria-pressed="true">Dark</button>
+      <button type="button" data-mode="vibrant" aria-pressed="false">Vibrant</button>
+    </div>
+  </header>
+
+  <section class="desk" id="desk" data-mode="dark" aria-label="F1 widget variations on a desktop">
+    <svg class="wall" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1b3446"/><stop offset=".55" stop-color="#4d6c78"/>
+          <stop offset=".8" stop-color="#c99863"/><stop offset="1" stop-color="#e7b77a"/>
+        </linearGradient>
+      </defs>
+      <rect width="1000" height="700" fill="url(#sky)"/>
+      <circle cx="760" cy="455" r="48" fill="#f6d39a" opacity=".55"/>
+      <path d="M0 470 C 140 420 260 455 380 430 S 640 380 760 420 S 930 440 1000 410 V700 H0z" fill="#3b5a63"/>
+      <path d="M0 530 C 160 490 300 540 470 505 S 760 470 880 505 S 970 515 1000 500 V700 H0z" fill="#26424b"/>
+      <path d="M0 600 C 200 560 360 610 560 580 S 860 560 1000 590 V700 H0z" fill="#162a31"/>
+    </svg>
+
+    <div class="grid">
+      <!-- 1 Race hub (large) -->
+      <div class="slot L"><span class="vlabel">1</span>
+      <article class="w hub" aria-label="Race hub, large widget">
+        <div class="hub-top">
+          <div class="col" style="min-width:0">
+            <div class="cap red bold up">Round 20 · Next race</div>
+            <div class="ttl ell" style="margin:.15em 0 .1em">Mexico City</div>
+            <div class="sub fg2 ell">30 Oct – 1 Nov</div>
+          </div>
+          <svg class="trk" viewBox="0 0 100 60" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+        </div>
+        <div class="row between" style="align-items:flex-end">
+          <div class="col">
+            <div class="cap fg2" data-cd-label="next">Next session</div>
+            <div class="big" data-cd="next">—</div>
+          </div>
+          <div class="cap fg2" style="text-align:right">Times in your time zone</div>
+        </div>
+        <div class="strip" data-sessions="strip"></div>
+        <div class="sep"></div>
+        <div class="row between"><span class="cap fg2 bold up">Drivers</span><span class="cap fg2">After round 19</span></div>
+        <div class="list" data-drivers="5" data-gaps="1" style="margin-top:-.4em"></div>
+      </article></div>
+
+      <!-- 2 Race weekend (medium) -->
+      <div class="slot m"><span class="vlabel">2</span>
+      <article class="w wk" aria-label="Race weekend, medium widget">
+        <div class="left">
+          <div>
+            <div class="cap red bold up">Round 20</div>
+            <div class="ttl ell" style="margin-top:.15em">Mexico City</div>
+            <div class="cap fg2 ell" style="margin-top:.2em">Hermanos Rodríguez</div>
+          </div>
+          <div>
+            <div class="cap fg2" data-cd-label="next">Next session</div>
+            <div class="big" data-cd="next">—</div>
+          </div>
+        </div>
+        <div class="sess" data-sessions="list"></div>
+      </article></div>
+
+      <!-- 3 Countdown (small) -->
+      <div class="slot"><span class="vlabel">3</span>
+      <article class="w cd" aria-label="Race countdown, small widget">
+        <div>
+          <div class="cap red bold up">Lights out</div>
+          <div class="sub bold ell">Mexico City GP</div>
+        </div>
+        <svg class="trk" viewBox="0 0 100 60" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+        <div>
+          <div class="big" data-cd="race">—</div>
+          <div class="cap fg2" data-cd-when="race"></div>
+        </div>
+      </article></div>
+
+      <!-- 4 My driver (small) -->
+      <div class="slot"><span class="vlabel">4</span>
+      <article class="w me" aria-label="Your driver, small widget" style="--t: var(--mcl)">
+        <div class="row" style="align-items:stretch">
+          <i class="tb"></i>
+          <div class="col" style="min-width:0">
+            <div class="sub bold ell">Oscar Piastri</div>
+            <div class="cap fg2 ell">McLaren</div>
+          </div>
+        </div>
+        <div class="row" style="align-items:baseline;gap:.35em">
+          <span class="num">P2</span><span class="cap fg2">in the standings</span>
+        </div>
+        <div class="stats">
+          <div class="col"><span class="sub bold">318</span><span class="cap fg2">points</span></div>
+          <div class="col"><span class="sub bold">−23</span><span class="cap fg2">to leader</span></div>
+        </div>
+      </article></div>
+
+      <!-- 5 Driver standings (medium) -->
+      <div class="slot m"><span class="vlabel">5</span>
+      <article class="w col" aria-label="Driver standings, medium widget">
+        <div class="row between"><span class="sub bold">Drivers</span><span class="cap fg2">After round 19</span></div>
+        <div class="list" data-drivers="5" data-gaps="1" data-full="1" style="margin-top:.2em"></div>
+      </article></div>
+
+      <!-- 6 Live timing (medium) -->
+      <div class="slot m"><span class="vlabel">6</span>
+      <article class="w col live" aria-label="Live timing, medium widget, simulated">
+        <div class="row between">
+          <div class="row"><span class="cap pill">LIVE</span><span class="sub bold">Mexico City</span></div>
+          <span class="sub"><span class="bold" id="lap">42</span><span class="fg2">/71</span></span>
+        </div>
+        <div class="list" id="timing" style="margin-top:.3em"></div>
+      </article></div>
+
+      <!-- 7 Constructors (medium) -->
+      <div class="slot m"><span class="vlabel">7</span>
+      <article class="w col cons" aria-label="Constructor standings, medium widget">
+        <div class="row between"><span class="sub bold">Constructors</span><span class="cap fg2">After round 19</span></div>
+        <div class="col" id="cons" style="margin-top:.35em"></div>
+      </article></div>
+
+      <!-- 8 Podium (small) -->
+      <div class="slot"><span class="vlabel">8</span>
+      <article class="w pod" aria-label="Last race podium, small widget">
+        <div>
+          <div class="cap fg2 bold up">Last race</div>
+          <div class="sub bold ell">United States GP</div>
+        </div>
+        <div class="steps">
+          <div class="s2" style="--t: var(--mcl)"><span class="who"><i></i>NOR</span><span class="blk">2</span></div>
+          <div class="s1" style="--t: var(--rbr)"><span class="who"><i></i>VER</span><span class="blk">1</span></div>
+          <div class="s3" style="--t: var(--fer)"><span class="who"><i></i>LEC</span><span class="blk">3</span></div>
+        </div>
+      </article></div>
+
+      <!-- 9 Title fight (small) -->
+      <div class="slot"><span class="vlabel">9</span>
+      <article class="w tf" aria-label="Championship gap, small widget">
+        <div class="cap red bold up">Title fight</div>
+        <div>
+          <div class="row" style="align-items:baseline;gap:.3em"><span class="huge">23</span><span class="sub fg2">pts</span></div>
+          <div class="sub ell"><span class="bold">Norris</span> <span class="fg2">leads Piastri</span></div>
+        </div>
+        <div class="col" style="gap:.3em">
+          <div class="split" aria-hidden="true"><b style="width:51.7%;background:var(--mcl)"></b><b style="flex:1;background:var(--w-fill)"></b></div>
+          <div class="cap fg2">5 races left · 130 pts to play</div>
+        </div>
+      </article></div>
+    </div>
+  </section>
+
+  <div class="scene-note">
+    <span><b>Live in this page:</b> session times and countdowns (real Mexico City GP weekend, shown in your time zone), lap ticker.</span>
+    <span><b>Sample data:</b> standings, points, results and live gaps. They're placeholders, not real 2026 results.</span>
+  </div>
+
+  <section class="decide" aria-labelledby="d-h">
+    <h2 id="d-h">How they differ.</h2>
+  </section>
+  <div class="cards">
+    <div class="vc"><div class="h"><span class="k">1</span><b>Race hub</b><span>Large</span></div><p>Everything at once: next race, the five sessions, live countdown, top five. The one to pick if someone adds only one F1 widget. Needs a new large card size (364 × 382 pt).</p></div>
+    <div class="vc"><div class="h"><span class="k">2</span><b>Race weekend</b><span>Medium</span></div><p>The schedule answer: "when's qualifying?" Finished sessions dim, the next one turns red, and it switches to "Live" while a session runs.</p></div>
+    <div class="vc"><div class="h"><span class="k">3</span><b>Countdown</b><span>Small</span></div><p>One number: time to lights out. The track outline makes it read as F1 without a logo.</p></div>
+    <div class="vc"><div class="h"><span class="k">4</span><b>Your driver</b><span>Small</span></div><p>Pick a driver once; see position, points and the gap to the leader. Most personal of the set.</p></div>
+    <div class="vc"><div class="h"><span class="k">5</span><b>Driver standings</b><span>Medium</span></div><p>Top five with points and gap. Quiet between races, updates only after a session is classified.</p></div>
+    <div class="vc"><div class="h"><span class="k">6</span><b>Live timing</b><span>Medium</span></div><p>During a session: lap count, top five, interval and tyre. Turns into the standings widget when nothing is running.</p></div>
+    <div class="vc"><div class="h"><span class="k">7</span><b>Constructors</b><span>Medium</span></div><p>Team points as bars, so the shape of the season reads at a glance. Points printed beside every bar.</p></div>
+    <div class="vc"><div class="h"><span class="k">8</span><b>Podium</b><span>Small</span></div><p>Last race's top three on steps. Mostly a Monday-morning widget.</p></div>
+    <div class="vc"><div class="h"><span class="k">9</span><b>Title fight</b><span>Small</span></div><p>The gap between first and second, and how many points are left to play. Best late in the season.</p></div>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Piece</th><th>Data on Windows</th><th>Refresh</th></tr></thead>
+      <tbody>
+        <tr><td class="n">Calendar, session times</td><td>Jolpica F1 API (the Ergast successor; free, no account), cached for the season</td><td>Once a day</td></tr>
+        <tr><td class="n">Standings, results</td><td>Jolpica F1 API</td><td>Every 15 min on race weekends after a session ends, otherwise daily</td></tr>
+        <tr><td class="n">Live timing, tyres</td><td>OpenF1 API (free for live data delayed a few seconds)</td><td>Every 5 s while a session is live, nothing otherwise</td></tr>
+        <tr><td class="n">Countdowns</td><td>Local clock against the cached schedule</td><td>Each minute, each second in the last hour</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var desk = document.getElementById("desk");
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var segButtons = document.querySelectorAll(".seg button");
+  segButtons.forEach(function (b) {
+    b.addEventListener("click", function () {
+      desk.dataset.mode = b.dataset.mode;
+      segButtons.forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+    });
+  });
+
+  /* Stylised Autódromo Hermanos Rodríguez, drawn into each widget (not <use>, so the page CSS styles it). */
+  var TRACK = '<path d="M14 14 L80 9 C90 8.4 93 16 86 19.5 L71 25 C66 27 66.5 31 71 32.8 L84 38 C91 41 89 51 80 51 L58 51 C51 51 49 46.5 53 43.5 C57 40.5 53 35.5 47 37.5 L23 46 C14 49 6 44 7.5 34 L9.5 21 C10.3 16.5 11.5 14.2 14 14 Z"/><circle class="start" cx="46" cy="11.4" r="3"/>';
+  document.querySelectorAll("svg.trk").forEach(function (svg) { svg.innerHTML = TRACK; });
+
+  function make(tag, cls, text, parent) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  /* Sample standings (placeholders). */
+  var DRIVERS = [
+    { c: "NOR", n: "Lando Norris", t: "mcl", pts: 341 },
+    { c: "PIA", n: "Oscar Piastri", t: "mcl", pts: 318 },
+    { c: "VER", n: "Max Verstappen", t: "rbr", pts: 297 },
+    { c: "RUS", n: "George Russell", t: "mer", pts: 251 },
+    { c: "LEC", n: "Charles Leclerc", t: "fer", pts: 214 }
+  ];
+  document.querySelectorAll("[data-drivers]").forEach(function (box) {
+    var full = box.hasAttribute("data-full");
+    DRIVERS.forEach(function (d, i) {
+      var r = make("div", "st", null, box);
+      r.style.setProperty("--t", "var(--" + d.t + ")");
+      make("span", "p", String(i + 1), r);
+      make("i", "tb", null, r);
+      var name = make("span", "ell", null, r);
+      make("span", "bold", full ? d.n : d.c, name);
+      if (!full) make("span", "fg2", "  " + d.n.split(" ").slice(-1)[0], name);
+      var pts = make("span", "pts", String(d.pts), r);
+      if (box.hasAttribute("data-gaps")) make("span", "gap", i ? "−" + (DRIVERS[0].pts - d.pts) : "", pts);
+    });
+  });
+
+  var CONS = [
+    { n: "McLaren", t: "mcl", pts: 659 }, { n: "Mercedes", t: "mer", pts: 402 },
+    { n: "Ferrari", t: "fer", pts: 388 }, { n: "Red Bull", t: "rbr", pts: 341 }, { n: "Williams", t: "wil", pts: 128 }
+  ];
+  var cons = document.getElementById("cons");
+  CONS.forEach(function (c) {
+    var r = make("div", "cr", null, cons);
+    r.style.setProperty("--t", "var(--" + c.t + ")");
+    make("span", "bold ell", c.n, r);
+    var bar = make("span", "bar", null, r);
+    make("b", null, null, bar).style.width = (c.pts / CONS[0].pts * 100).toFixed(1) + "%";
+    make("span", "pts", String(c.pts), r);
+  });
+
+  /* Mexico City GP 2026 weekend, UTC (Mexico City is UTC-6 all year). */
+  var SESS = [
+    { k: "FP1", s: Date.UTC(2026, 9, 30, 18, 30), d: 60 },
+    { k: "FP2", s: Date.UTC(2026, 9, 30, 22, 0), d: 60 },
+    { k: "FP3", s: Date.UTC(2026, 9, 31, 17, 30), d: 60 },
+    { k: "Quali", s: Date.UTC(2026, 9, 31, 21, 0), d: 60 },
+    { k: "Race", s: Date.UTC(2026, 10, 1, 20, 0), d: 120 }
+  ];
+  var dayFmt = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+  var timeFmt = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+
+  function stateOf(s, now) {
+    if (now >= s.s + s.d * 60000) return "done";
+    if (now >= s.s) return "live";
+    return "up";
+  }
+  function span(ms) {
+    var m = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mm = m % 60;
+    if (d) return d + "d " + h + "h";
+    if (h) return h + "h " + (mm < 10 ? "0" : "") + mm + "m";
+    var sec = Math.max(0, Math.floor(ms / 1000) % 60);
+    return mm + ":" + (sec < 10 ? "0" : "") + sec;
+  }
+
+  var lists = document.querySelectorAll("[data-sessions='list']"), strips = document.querySelectorAll("[data-sessions='strip']");
+  lists.forEach(function (box) {
+    SESS.forEach(function (s) {
+      var r = make("div", "ss", null, box);
+      make("span", "k", s.k, r);
+      make("span", "fg2 ell", dayFmt.format(s.s) + " " + timeFmt.format(s.s), r);
+      make("span", "st8", "", r);
+    });
+  });
+  strips.forEach(function (box) {
+    SESS.forEach(function (s) {
+      var c = make("div", null, null, box);
+      make("span", "cap bold k", s.k, c);
+      make("span", "cap", dayFmt.format(s.s), c);
+      make("span", "cap fg2", timeFmt.format(s.s), c);
+    });
+  });
+  document.querySelectorAll("[data-cd-when='race']").forEach(function (e) {
+    e.textContent = dayFmt.format(SESS[4].s) + " " + timeFmt.format(SESS[4].s);
+  });
+
+  function tickSessions() {
+    var now = Date.now(), next = null;
+    var states = SESS.map(function (s) { var st = stateOf(s, now); if (!next && st !== "done") next = s; return st; });
+    var nextIdx = next ? SESS.indexOf(next) : -1;
+    function label(i) { return states[i] === "done" ? "done" : states[i] === "live" ? "live" : i === nextIdx ? "next" : "up"; }
+    lists.forEach(function (box) {
+      Array.prototype.forEach.call(box.children, function (r, i) {
+        r.dataset.s = label(i);
+        r.lastChild.textContent = label(i) === "done" ? "Done" : label(i) === "live" ? "Live" : label(i) === "next" ? "Next" : "";
+      });
+    });
+    strips.forEach(function (box) { Array.prototype.forEach.call(box.children, function (c, i) { c.dataset.s = label(i); }); });
+
+    document.querySelectorAll("[data-cd='next']").forEach(function (e) {
+      if (!next) e.textContent = "Finished";
+      else if (states[nextIdx] === "live") e.textContent = "Live now";
+      else e.textContent = span(next.s - now);
+    });
+    document.querySelectorAll("[data-cd-label='next']").forEach(function (e) {
+      e.textContent = !next ? "Weekend" : states[nextIdx] === "live" ? next.k : next.k + " in";
+    });
+    var race = SESS[4], rs = stateOf(race, now);
+    document.querySelectorAll("[data-cd='race']").forEach(function (e) {
+      e.textContent = rs === "done" ? "Finished" : rs === "live" ? "Racing" : span(race.s - now);
+    });
+  }
+  tickSessions();
+  setInterval(tickSessions, 1000);
+
+  /* Live timing (simulated). */
+  var LIVE = [
+    { c: "NOR", n: "Norris", t: "mcl", tyre: "M", iv: 0 },
+    { c: "VER", n: "Verstappen", t: "rbr", tyre: "H", iv: 1.842 },
+    { c: "LEC", n: "Leclerc", t: "fer", tyre: "M", iv: 3.106 },
+    { c: "PIA", n: "Piastri", t: "mcl", tyre: "H", iv: 0.874 },
+    { c: "RUS", n: "Russell", t: "mer", tyre: "S", iv: 5.411 }
+  ];
+  var timing = document.getElementById("timing"), lapEl = document.getElementById("lap"), lap = 42;
+  function renderTiming() {
+    timing.textContent = "";
+    LIVE.forEach(function (d, i) {
+      var r = make("div", "lt", null, timing);
+      r.style.setProperty("--t", "var(--" + d.t + ")");
+      make("span", "fg2 bold", String(i + 1), r).style.textAlign = "right";
+      make("i", "tb", null, r);
+      make("span", "bold", d.c, r);
+      make("span", "fg2 ell", d.n, r);
+      var ty = make("span", "tyre", d.tyre, r);
+      ty.dataset.c = d.tyre;
+      ty.setAttribute("aria-label", { S: "Soft", M: "Medium", H: "Hard" }[d.tyre] + " tyre");
+      make("span", "iv", i ? "+" + d.iv.toFixed(3) : "Leader", r);
+    });
+    lapEl.textContent = lap;
+  }
+  renderTiming();
+  if (!reduce) setInterval(function () {
+    LIVE.forEach(function (d, i) { if (i) d.iv = Math.max(0.3, d.iv + (Math.random() - .5) * 0.35); });
+    if (Math.random() < .3) lap = lap >= 71 ? 42 : lap + 1;
+    renderTiming();
+  }, 2000);
+})();
+</script>
+</body>
+</html>
