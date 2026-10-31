@@ -186,10 +186,13 @@ create policy versions_insert on public.versions for insert to authenticated
 -- ---------------------------------------------------------------- grants
 -- Supabase grants everything on public tables to anon and authenticated by default. Take it back
 -- and hand out only what the policies above are for. No UPDATE or DELETE for anyone.
+-- service_role needs SELECT on tables the Edge Functions read (admins, access_requests);
+-- bypassrls skips row policies but not table-level grants.
 
 revoke all on public.profiles, public.admins, public.widgets, public.versions, public.access_requests from anon, authenticated;
 grant select on public.widgets, public.versions to anon, authenticated;
 grant select on public.profiles, public.admins, public.access_requests to authenticated;
+grant select on public.admins, public.access_requests to service_role;
 grant insert (id, username, bio, avatar) on public.profiles to authenticated;
 grant update (bio, avatar) on public.profiles to authenticated;
 grant insert (id, owner, slug) on public.widgets to authenticated;

@@ -38,7 +38,8 @@ Deno.serve(async (req) => {
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   const { data: { user } } = token ? await admin.auth.getUser(token) : { data: { user: null } };
   if (!user) return reply(401, { error: "Sign in first." });
-  const { data: isAdmin } = await admin.from("admins").select("user_id").eq("user_id", user.id).maybeSingle();
+  const { data: isAdmin, error: adminError } = await admin.from("admins").select("user_id").eq("user_id", user.id).maybeSingle();
+  if (adminError) return reply(500, { error: "Could not verify admin status: " + adminError.message });
   if (!isAdmin) return reply(403, { error: "Only the owner can invite people." });
 
   // { request: <id> } accepts a waiting request; { email } invites an address directly.
