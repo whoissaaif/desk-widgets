@@ -42,7 +42,23 @@ export function el(tag, attrs = {}, ...children) {
 
 // The global nav: pages on the left, then the account at the right (Sign In, or your photo with a
 // menu; Admin for the owner). Shows any message a previous page left for this one (toast()).
+// A "Change your password" link that landed on another page (the dashboard's own recovery email
+// goes to the site's home page) moves to password.html with its fragment, before this page does
+// anything with it. While that happens, me() never answers, so the page can't clear the fragment
+// or send the person elsewhere.
+let leaving = false;
+
+function routeAuthLink(current) {
+  const type = new URLSearchParams(location.hash.slice(1)).get("type");
+  if (type === "recovery" && current !== "password") {
+    leaving = true;
+    location.replace("password.html" + location.hash);
+  }
+}
+
 export function nav(current) {
+  routeAuthLink(current);
+  if (leaving) return;
   const link = (href, text, key) => el("a", { class: "link", href, "aria-current": current === key ? "page" : null }, text);
   const account = el("div", { class: "account" });
   document.body.prepend(el("nav", { class: "nav", "aria-label": "Site" },
@@ -71,6 +87,7 @@ export function maybeSignedIn() {
 
 // The signed-in person's profile (null when there's none yet) and whether they're the owner.
 export async function me() {
+  if (leaving) return new Promise(() => {}); // the page is moving to password.html
   if (!maybeSignedIn()) return null;
   const db = await supabase();
   const { data: { session } } = await db.auth.getSession();
