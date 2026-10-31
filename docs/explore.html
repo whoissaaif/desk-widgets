@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Explore · Desk Widgets</title>
+  <meta name="description" content="Free, lightweight desktop widgets for Windows, and widgets made by the community.">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <main class="content">
+    <section class="section">
+      <h1 class="t-section two-tone">Explore. <span class="tail">Widgets made by the community.</span></h1>
+      <p class="t-intro">Each one is read by a person before it appears here, and installs in one click.</p>
+      <div class="actions">
+        <a class="button" id="download">Download Desk Widgets</a>
+        <a class="more" href="upload.html">Upload a widget</a>
+      </div>
+
+      <div class="toolbar">
+        <div class="segmented" role="group" aria-label="Category" id="filters"></div>
+        <input class="search" type="search" id="search" placeholder="Search widgets" aria-label="Search widgets">
+      </div>
+      <div id="status"></div>
+      <div class="grid" id="grid" aria-live="polite"></div>
+      <p class="t-caption" style="margin-top: 32px">Get opens Desk Widgets, which checks the widget and asks before installing it.</p>
+    </section>
+  </main>
+
+  <script type="module">
+    import { nav, el, art, getButton, supabase, configured, CATEGORIES, categoryName, isValidId, notice, DOWNLOAD_URL } from "./assets/site.js";
+
+    nav("explore");
+    document.getElementById("download").href = DOWNLOAD_URL;
+
+    const grid = document.getElementById("grid"), status = document.getElementById("status");
+    const search = document.getElementById("search"), filters = document.getElementById("filters");
+    let widgets = [], category = null;
+
+    for (const [id, name] of [[null, "All"], ...CATEGORIES]) {
+      filters.append(el("button", { type: "button", "aria-pressed": String(id === category), onclick: () => {
+        category = id;
+        for (const b of filters.children) b.setAttribute("aria-pressed", String(b.dataset.id === String(id)));
+        render();
+      }, "data-id": String(id) }, name));
+    }
+    search.addEventListener("input", render);
+
+    function render() {
+      const q = search.value.trim().toLowerCase();
+      const shown = widgets.filter(w => (!category || w.category === category) &&
+        (!q || (w.name + " " + w.description + " " + w.author).toLowerCase().includes(q)));
+      grid.replaceChildren(...shown.map(w =>
+        el("article", { class: "tile" },
+          el("a", { href: "widget.html?id=" + encodeURIComponent(w.id), "aria-label": w.name }, art(w.preview, w.name)),
+          el("div", { class: "tile-row" },
+            el("div", { class: "text" },
+              el("a", { class: "name", href: "widget.html?id=" + encodeURIComponent(w.id), style: "color: inherit; display: block" }, w.name),
+              el("div", { class: "by" }, w.author + " · " + categoryName(w.category))),
+            getButton(w.id, w.version)))));
+      if (widgets.length && !shown.length) grid.replaceChildren(el("p", { class: "empty" }, "No widgets match."));
+    }
+
+    async function load() {
+      if (!configured) { status.replaceChildren(notice("The community gallery isn't connected yet. The built-in widgets come with the app.")); return; }
+      try {
+        const db = await supabase();
+        const { data, error } = await db.from("explore").select("*").order("reviewed_at", { ascending: false });
+        if (error) throw error;
+        widgets = (data || []).filter(w => isValidId(w.id));
+        if (!widgets.length) status.replaceChildren(el("div", { class: "empty" },
+          el("p", { class: "t-card" }, "Nothing here yet."), el("p", {}, "Reviewed community widgets will appear here.")));
+        render();
+      } catch (e) {
+        status.replaceChildren(notice("The gallery couldn't load. Check your connection and reload the page.", true));
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

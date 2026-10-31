@@ -1,5 +1,7 @@
-// Supabase Edge Function: the owner invites an uploader by email and sets their username.
-// Inviting needs the service key, which lives only in this function's secrets, never in the repo.
+// Supabase Edge Function: the owner accepts an access request (or invites an address directly), and
+// Supabase emails an invite link. The link opens docs/account.html, where the invitee picks their
+// username, password, bio and photo. Inviting needs the service key, which lives only in this
+// function's secrets, never in the repo.
 // Deploy: supabase functions deploy invite   (secrets: SITE_URL, e.g. https://whoissaaif.github.io/desk-widgets)
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -39,31 +41,37 @@ Deno.serve(async (req) => {
   const { data: isAdmin } = await admin.from("admins").select("user_id").eq("user_id", user.id).maybeSingle();
   if (!isAdmin) return reply(403, { error: "Only the owner can invite people." });
 
-  let email = "", username = "";
+  // { request: <id> } accepts a waiting request; { email } invites an address directly.
+  let email = "", request: number | null = null;
   try {
     const body = await req.json();
-    email = String(body.email ?? "").trim().toLowerCase();
-    username = String(body.username ?? "").trim().toLowerCase();
+    if (body.request != null) request = Number(body.request);
+    else email = String(body.email ?? "").trim().toLowerCase();
   } catch {
-    return reply(400, { error: "Send JSON with email and username." });
+    return reply(400, { error: "Send JSON with a request id or an email." });
+  }
+  if (request != null) {
+    if (!Number.isSafeInteger(request)) return reply(400, { error: "That request doesn't exist." });
+    const { data: row } = await admin.from("access_requests").select("email, status").eq("id", request).maybeSingle();
+    if (!row) return reply(404, { error: "That request doesn't exist." });
+    if (row.status !== "pending") return reply(409, { error: "That request was already " + row.status + "." });
+    email = row.email;
   }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return reply(400, { error: "That email address doesn't look right." });
-  if (!/^[a-z0-9-]{2,24}$/.test(username)) {
-    return reply(400, { error: "Usernames are 2 to 24 lowercase letters, digits or hyphens." });
-  }
-  const { data: taken } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
-  if (taken) return reply(409, { error: `The username ${username} is taken.` });
 
-  const { data: invited, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: SITE_URL ? SITE_URL + "/upload.html" : undefined,
+  const { error } = await admin.auth.admin.inviteUserByEmail(email, {
+    redirectTo: SITE_URL ? SITE_URL + "/account.html" : undefined,
   });
-  if (error || !invited.user) return reply(400, { error: error?.message ?? "The invite couldn't be sent." });
-
-  // The profile is what allows uploading (see the insert policies in schema.sql).
-  const { error: profileError } = await admin.from("profiles").insert({ id: invited.user.id, username });
-  if (profileError) {
-    await admin.auth.admin.deleteUser(invited.user.id);
-    return reply(409, { error: "The invite was cancelled: " + profileError.message });
+  if (error) {
+    const known = /already|registered|exists/i.test(error.message);
+    return reply(known ? 409 : 400, { error: known ? email + " already has an account." : error.message });
   }
-  return reply(200, { invited: email, username });
+
+  // Remembered either way, so the same address can't queue another request.
+  if (request != null) {
+    await admin.from("access_requests").update({ status: "accepted", decided_at: new Date().toISOString() }).eq("id", request);
+  } else {
+    await admin.from("access_requests").upsert({ email, status: "accepted", decided_at: new Date().toISOString() }, { onConflict: "email" });
+  }
+  return reply(200, { invited: email });
 });

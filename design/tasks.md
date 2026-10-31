@@ -79,6 +79,23 @@ Blocker found: the repo is private, and on a free GitHub account Pages only serv
 - [ ] **Claude:** right-click test on a community widget that sits on the desktop (its own menu
       items, e.g. Hello's "Say Hi"); blocked last time by an app window covering it
 
+## 5. Accounts, landing page, repo (branch `accounts-and-landing`)
+
+- [x] **Claude:** Download starts the latest exe (`releases/latest/download/DeskWidgets.exe`)
+- [x] **Claude:** request access by email (Upload page) › Accept/Reject on the admin page › invite
+      email › `account.html` (username, password, bio, photo) › sign in with username and password
+      (`login.html`, `functions/login`); profile menu and Admin link in the nav; toasts confirm
+- [x] **Claude:** app: sign in (sidebar account row), Upload a Widget… sheet, "Upload to the
+      Gallery…" on installed-from-file widgets, Explore marks installed widgets
+- [x] **Claude:** landing page (`index.html`; the gallery moved to `explore.html`), README,
+      templates, CI, CONTRIBUTING, SECURITY; schema tests 68/68
+- [x] **Deploy:** `server/schema.sql` run live; `invite` redeployed and `login` deployed (Verify JWT
+      off), both byte-identical to the repo; repo homepage, topics, ruleset on `main` (PRs with both
+      CI checks), private vulnerability reporting
+- [x] **Release:** v1.1.0 (SHA-256 `ce65793f...`); the site's Download serves it
+- [ ] **You:** merge PR #5 (puts the new website live), then try the signed-in flows below
+- [ ] **You:** set your password: `login.html` › Forgot your password (your account predates passwords)
+
 ## Done (for reference)
 
 - Apple design language everywhere; `DESIGN.md` retired; menus app-drawn (section 17)

@@ -34,7 +34,7 @@ namespace DeskWidgets
         readonly List<WidgetCard> installedCards = new List<WidgetCard>();
         readonly List<PluginRow> turnedOff = new List<PluginRow>();
         readonly List<SidebarItem> nav = new List<SidebarItem>();
-        readonly SidebarItem startup;
+        readonly SidebarItem startup, account;
         string page; // category id, InstalledPage, or null for all widgets
 
         public LibraryWindow()
@@ -58,8 +58,8 @@ namespace DeskWidgets
             content.Controls.Add(installButton);
             noneInstalled = new EmptyState("No Installed Widgets", "Widgets you install from a file appear here.");
             content.Controls.Add(noneInstalled);
-            uploadButton = new PillButton("Upload a Widget ↗", ButtonStyle.Tinted);
-            uploadButton.Click += delegate { OpenWebsite("upload.html"); };
+            uploadButton = new PillButton("Upload a Widget…", ButtonStyle.Tinted);
+            uploadButton.Click += delegate { App.UploadWidget(null); };
             content.Controls.Add(uploadButton);
             exploreState = new EmptyState("", "");
             content.Controls.Add(exploreState);
@@ -78,11 +78,20 @@ namespace DeskWidgets
                 startup.Invalidate();
             };
             sidebar.Controls.Add(startup);
+            // The account sits at the bottom of the sidebar (§8.11): your photo and name, or Sign In.
+            account = new SidebarItem('\uE77B', "");
+            account.SetBounds(Px(12), sidebar.Height - Px(88), sidebar.Width - Px(24), Px(34));
+            account.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
+            account.Click += delegate { AccountClicked(); };
+            sidebar.Controls.Add(account);
+            UpdateAccount();
+            if (Account.SignedIn && Account.Photo == null) System.Threading.ThreadPool.QueueUserWorkItem(delegate { Account.LoadProfile(); });
 
             Controls.Add(content);
             Controls.Add(sidebar);
             App.Current.WidgetsChanged += OnWidgetsChanged;
             WidgetRegistry.Changed += OnRegistryChanged;
+            Account.Changed += UpdateAccount;
             Theme.Changed += OnThemeChanged;
             ShowPage(null);
         }
@@ -156,7 +165,7 @@ namespace DeskWidgets
 
         void BuildNav()
         {
-            foreach (var c in sidebar.Controls.Cast<Control>().Where(c => c != startup).ToArray()) { sidebar.Controls.Remove(c); c.Dispose(); }
+            foreach (var c in sidebar.Controls.Cast<Control>().Where(c => c != startup && c != account).ToArray()) { sidebar.Controls.Remove(c); c.Dispose(); }
             nav.Clear();
             var title = new Label { Text = "Desk Widgets", Font = Theme.Title3, ForeColor = Theme.Label, AutoSize = true, Location = new Point(Px(24), Px(22)) };
             sidebar.Controls.Add(title);
@@ -351,10 +360,27 @@ namespace DeskWidgets
             });
         }
 
-        static void OpenWebsite(string path)
+        // ---- account ----
+
+        void UpdateAccount()
         {
-            try { System.Diagnostics.Process.Start(Community.Website + path); }
-            catch (Exception) { }
+            if (IsDisposed) return;
+            account.Text = Account.SignedIn ? Account.Username : "Sign In";
+            account.Photo = Account.SignedIn ? Account.Photo : null;
+            account.Invalidate();
+        }
+
+        void AccountClicked()
+        {
+            if (!Account.SignedIn) { App.SignIn(null); return; }
+            var menu = new PopupMenu();
+            menu.Add("Upload a Widget…", delegate { App.UploadWidget(null); });
+            menu.Add("Your Uploads ↗", delegate { App.OpenWebsite("upload.html#uploads"); });
+            menu.Add("Edit Profile ↗", delegate { App.OpenWebsite("account.html"); });
+            if (Account.IsAdmin) menu.Add("Admin Console ↗", delegate { App.OpenWebsite("admin.html"); });
+            menu.AddSeparator();
+            menu.Add("Sign Out", Account.SignOut);
+            menu.Show(account.PointToScreen(new Point(0, account.Height)));
         }
 
         // ---- changes ----
@@ -399,6 +425,7 @@ namespace DeskWidgets
             ShowPage(page);
             foreach (Control c in content.Controls) c.Invalidate();
             startup.Invalidate();
+            account.Invalidate();
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -411,6 +438,7 @@ namespace DeskWidgets
         {
             App.Current.WidgetsChanged -= OnWidgetsChanged;
             WidgetRegistry.Changed -= OnRegistryChanged;
+            Account.Changed -= UpdateAccount;
             Theme.Changed -= OnThemeChanged;
             base.OnFormClosed(e);
         }
@@ -515,6 +543,7 @@ namespace DeskWidgets
     {
         public readonly char Glyph;
         public bool Selected, Toggle, On;
+        public Bitmap Photo; // drawn round in place of the glyph (the account row); not owned
         bool hover;
 
         public SidebarItem(char glyph, string text)
@@ -531,7 +560,20 @@ namespace DeskWidgets
             else if (hover) Theme.FillRound(g, Color.FromArgb(Theme.Selection.A / 2, Theme.Selection), r, Px(Theme.RadiusSmall));
 
             var flags = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding;
-            TextRenderer.DrawText(g, Glyph.ToString(), Theme.Icons, new Rectangle(Px(12), 0, Px(20), Height), Theme.Link, flags);
+            if (Photo != null)
+            {
+                int d = Px(22);
+                using (var clip = new GraphicsPath())
+                {
+                    clip.AddEllipse(Px(11), (Height - d) / 2, d, d);
+                    g.SetClip(clip);
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.DrawImage(Photo, Px(11), (Height - d) / 2, d, d);
+                    g.ResetClip();
+                }
+            }
+            else
+                TextRenderer.DrawText(g, Glyph.ToString(), Theme.Icons, new Rectangle(Px(12), 0, Px(20), Height), Theme.Link, flags);
             TextRenderer.DrawText(g, Text, Selected ? Theme.Font(14, 600) : Theme.Font(14),
                 new Rectangle(Px(42), 0, Width - Px(46) - (Toggle ? Px(44) : 0), Height), Theme.Label, flags | TextFormatFlags.EndEllipsis);
 
@@ -643,6 +685,7 @@ namespace DeskWidgets
             PluginInfo p = Installed;
             button.Text = p == null ? "Get" : p.Version < listing.Version ? "Update" : "Add";
             button.Invalidate();
+            Invalidate(); // the Installed line
         }
 
         void Act()
@@ -698,6 +741,16 @@ namespace DeskWidgets
             string category = WidgetRegistry.Categories.Where(c => c.Id == listing.Category).Select(c => c.Name).FirstOrDefault() ?? "";
             TextRenderer.DrawText(g, listing.Author + (category.Length > 0 ? " · " + category : ""), Theme.Footnote,
                 new Rectangle(pad, textTop + Px(21), lineW - button.Width - Px(8), Px(18)), Theme.Label2, BackColor, flags);
+            // Installed: a checkmark and, when an update is out, the version you have.
+            PluginInfo mine = Installed;
+            if (mine != null)
+            {
+                int y = textTop + Px(40), w = lineW - button.Width - Px(8);
+                TextRenderer.DrawText(g, "\uE73E", Theme.Icons, new Rectangle(pad, y, Px(14), Px(18)), Theme.Label2, BackColor,
+                    TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter);
+                TextRenderer.DrawText(g, mine.Version < listing.Version ? "Installed · v" + mine.Version : "Installed", Theme.Footnote,
+                    new Rectangle(pad + Px(17), y, w - Px(17), Px(18)), Theme.Label2, BackColor, flags | TextFormatFlags.VerticalCenter);
+            }
         }
 
         protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); button.Invalidate(); base.OnMouseEnter(e); }
@@ -813,6 +866,7 @@ namespace DeskWidgets
             if (plugin != null)
             {
                 menu.Add("Show Source", delegate { AlertDialog.ShowSource(Plugins.DisplayName(plugin), plugin.SourcePath); });
+                if (plugin.Author == "local") menu.Add("Upload to the Gallery…", delegate { App.UploadWidget(plugin); });
                 menu.AddSeparator();
                 menu.AddDestructive("Uninstall…", delegate { App.ConfirmUninstall(plugin); });
             }

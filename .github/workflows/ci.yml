@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: Build the app
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (includes the hidden-character check)
+        shell: cmd
+        run: build.bat
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DeskWidgets
+          path: bin/DeskWidgets.exe
+
+  server:
+    name: Database rules
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server/test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm test

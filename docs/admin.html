@@ -4,21 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>Review · Desk Widgets</title>
+  <title>Admin Console · Desk Widgets</title>
   <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
   <main class="content section">
-    <h1 class="t-section two-tone">Review. <span class="tail">Read it, then decide.</span></h1>
+    <h1 class="t-section two-tone">Admin. <span class="tail">Read it, then decide.</span></h1>
     <p class="t-intro">Approving pins the hash of exactly the text shown here. The app installs nothing else.</p>
     <div id="page" style="margin-top: 40px"></div>
   </main>
 
   <script type="module">
-    import { nav, el, art, notice, supabase, categoryName, formatDate, sha256Hex, isValidId, hiddenCharacters, visibleSource } from "./assets/site.js";
-    import { signedIn, signOutLink } from "./assets/account.js";
+    import { nav, el, art, notice, supabase, categoryName, formatDate, sha256Hex, isValidId, hiddenCharacters, visibleSource, toast } from "./assets/site.js";
+    import { requireAccount, callFunction } from "./assets/account.js";
 
-    nav("review");
+    nav("admin");
     const page = document.getElementById("page");
 
     // Line diff (longest common subsequence). Big inputs fall back to the full text.
@@ -49,11 +49,10 @@
     }
 
     async function main() {
-      const user = await signedIn(page, "Owner sign-in.");
-      if (!user) return;
+      const who = await requireAccount();
+      if (!who) return;
+      if (!who.admin) { page.replaceChildren(notice("This page is for the owner.", true)); return; }
       const db = await supabase();
-      const { data: admin } = await db.rpc("is_admin");
-      if (!admin) { page.replaceChildren(notice("This page is for the owner.", true)); return; }
 
       const { data: pending, error } = await db.from("versions")
         .select("widget_id, version, name, category, description, api_version, source, preview, created_at")
@@ -96,28 +95,52 @@
           result));
       }
 
-      // ---- invite ----
+      // ---- access requests: Accept emails an invite (functions/invite), Reject just records it ----
+      const { data: requests } = await db.from("access_requests").select("id, email, created_at")
+        .eq("status", "pending").order("created_at");
+      const requestRows = (requests || []).map(rq => {
+        const state = el("span", { class: "t-reduced" });
+        const accept = el("button", { class: "button small", type: "button" }, "Accept");
+        const reject = el("button", { class: "button grey small", type: "button" }, "Reject");
+        const decide = async yes => {
+          accept.disabled = reject.disabled = true;
+          const error = yes ? (await callFunction("invite", { request: rq.id })).error
+                            : ((await db.rpc("reject_request", { p_id: rq.id })).error || {}).message;
+          if (error) { accept.disabled = reject.disabled = false; state.replaceChildren(el("span", { class: "status rejected" }, error)); return; }
+          accept.remove(); reject.remove();
+          state.replaceChildren(el("span", { class: "status " + (yes ? "approved" : "rejected") }, yes ? "Invite sent" : "Rejected"));
+          toast(yes ? "Invite sent to " + rq.email + "." : "Request from " + rq.email + " rejected.");
+        };
+        accept.addEventListener("click", () => decide(true));
+        reject.addEventListener("click", () => decide(false));
+        return el("div", { class: "row" },
+          el("div", { class: "main" }, el("div", { class: "t-headline" }, rq.email),
+            el("div", { class: "t-reduced" }, "Asked " + formatDate(rq.created_at))),
+          state, reject, accept);
+      });
+
+      // ---- invite someone directly ----
       const email = el("input", { class: "input", id: "invite-email", type: "email", required: true });
-      const username = el("input", { class: "input", id: "invite-name", pattern: "[a-z0-9-]{2,24}", required: true });
       const inviteResult = el("div");
       const invite = el("form", { class: "form", onsubmit: async e => {
           e.preventDefault();
-          const { data, error } = await db.functions.invoke("invite", { body: { email: email.value, username: username.value } });
-          inviteResult.replaceChildren(error
-            ? notice("The invite wasn't sent. " + ((data && data.error) || error.message), true)
-            : notice("Invited " + data.invited + " as " + data.username + "."));
+          const { data, error } = await callFunction("invite", { email: email.value });
+          inviteResult.replaceChildren(error ? notice("The invite wasn't sent. " + error, true)
+            : notice("Invited " + data.invited + ". They choose their username when they open the email."));
+          if (!error) invite.reset();
         } },
-        el("div", { class: "field" }, el("label", { for: "invite-email" }, "Email"), email),
-        el("div", { class: "field" }, el("label", { for: "invite-name" }, "Username"), username,
-          el("span", { class: "hint" }, "2 to 24 lowercase letters, digits or hyphens. It's part of every widget id they make and can't change.")),
+        el("div", { class: "field" }, el("label", { for: "invite-email" }, "Email"), email,
+          el("span", { class: "hint" }, "They get an email with a link to choose a username, password, bio and photo.")),
         el("div", {}, el("button", { class: "button grey", type: "submit" }, "Send Invite")),
         inviteResult);
 
       page.replaceChildren(
-        el("p", { class: "t-reduced" }, "Signed in as the owner. ", await signOutLink()),
+        el("p", { class: "t-reduced" }, "Signed in as " + who.profile.username + ", the owner."),
         el("h2", { class: "block" }, "Waiting for Review"),
         queue.length ? el("div", {}, queue) : el("p", { class: "t-reduced" }, "Nothing is waiting."),
-        el("h2", { class: "block" }, "Invite an Uploader"),
+        el("h2", { class: "block", id: "requests" }, "Access Requests"),
+        requestRows.length ? el("div", { class: "group" }, requestRows) : el("p", { class: "t-reduced" }, "No one is waiting for access."),
+        el("h2", { class: "block" }, "Invite Someone"),
         invite);
     }
     main().catch(() => page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true)));

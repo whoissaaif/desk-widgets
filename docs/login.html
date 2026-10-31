@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign In · Desk Widgets</title>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <main class="content section narrow">
+    <h1 class="t-section">Sign in.</h1>
+    <p class="t-intro">Use the username and password you chose when you accepted your invite.</p>
+    <div id="page" style="margin-top: 40px"></div>
+  </main>
+
+  <script type="module">
+    import { nav, el, notice, supabase, configured, me, toast } from "./assets/site.js";
+    import { signInWithPassword } from "./assets/account.js";
+
+    nav("login");
+    const page = document.getElementById("page");
+    // Only pages on this site, never another origin.
+    const raw = new URLSearchParams(location.search).get("next") || "";
+    const next = /^[a-z-]+\.html$/.test(raw) && raw !== "login.html" ? raw : "upload.html";
+
+    async function main() {
+      if (!configured) { page.replaceChildren(notice("Accounts aren't connected yet.")); return; }
+      const already = await me();
+      if (already && already.profile) {
+        page.replaceChildren(notice("You're signed in as " + already.profile.username + "."),
+          el("div", { class: "actions" }, el("a", { class: "button", href: next }, "Continue")));
+        return;
+      }
+
+      const username = el("input", { class: "input", id: "username", autocomplete: "username", required: true,
+        autocapitalize: "none", spellcheck: "false", maxlength: "24" });
+      const password = el("input", { class: "input", id: "password", type: "password", autocomplete: "current-password", required: true });
+      const result = el("div");
+      const button = el("button", { class: "button", type: "submit" }, "Sign In");
+      const form = el("form", { class: "form", onsubmit: async e => {
+          e.preventDefault();
+          button.disabled = true;
+          result.replaceChildren();
+          const error = await signInWithPassword(username.value.trim().toLowerCase(), password.value);
+          button.disabled = false;
+          if (error) { result.replaceChildren(notice(error, true)); password.select(); return; }
+          toast("Signed in as " + username.value.trim().toLowerCase() + ".", true);
+          location.href = next;
+        } },
+        el("div", { class: "field" }, el("label", { for: "username" }, "Username"), username),
+        el("div", { class: "field" }, el("label", { for: "password" }, "Password"), password),
+        el("div", {}, button),
+        result);
+
+      // Forgot password: a one-time link to the email on the account, which opens account.html
+      // signed in, where a new password can be set. Sign-ups are off, so unknown addresses get nothing.
+      const email = el("input", { class: "input", type: "email", id: "reset-email", autocomplete: "email", required: true });
+      const resetResult = el("div");
+      const reset = el("form", { class: "form", hidden: true, onsubmit: async e => {
+          e.preventDefault();
+          const db = await supabase();
+          await db.auth.signInWithOtp({ email: email.value.trim(),
+            options: { shouldCreateUser: false, emailRedirectTo: new URL("account.html", location.href).href } });
+          // The same answer whether or not the address has an account.
+          resetResult.replaceChildren(notice("If that address has an account, a link to set a new password is on its way."));
+        } },
+        el("div", { class: "field" }, el("label", { for: "reset-email" }, "Email"), email,
+          el("span", { class: "hint" }, "The address your invite was sent to.")),
+        el("div", {}, el("button", { class: "button grey", type: "submit" }, "Email Me a Link")),
+        resetResult);
+
+      page.replaceChildren(form,
+        el("p", { class: "t-reduced", style: "margin-top: 32px" },
+          el("a", { href: "#", class: "more", onclick: e => { e.preventDefault(); reset.hidden = false; email.focus(); } }, "Forgot your password"),
+          el("br"),
+          "No account? Uploading is by invitation. ", el("a", { class: "more", href: "upload.html#request" }, "Request access")),
+        reset);
+      username.focus();
+    }
+    main().catch(() => page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true)));
+  </script>
+</body>
+</html>

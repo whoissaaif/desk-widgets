@@ -10,7 +10,7 @@
   <main class="content section" id="page"></main>
 
   <script type="module">
-    import { nav, el, art, getButton, supabase, configured, categoryName, isValidId, notice, formatDate, installUrl, visibleSource } from "./assets/site.js";
+    import { nav, el, art, getButton, supabase, configured, categoryName, isValidId, notice, formatDate, installUrl, visibleSource, avatar } from "./assets/site.js";
 
     nav(null);
     const page = document.getElementById("page");
@@ -27,8 +27,10 @@
           .eq("widget_id", id).eq("status", "approved").order("version", { ascending: false });
         if (error) throw error;
         if (!versions || !versions.length) { page.replaceChildren(notice("This widget isn't available.", true)); return; }
-        const { data: author } = await db.from("explore").select("author").eq("id", id).maybeSingle();
-        show(versions, author ? author.author : "");
+        const { data: listed } = await db.from("explore").select("author").eq("id", id).maybeSingle();
+        const { data: author } = listed
+          ? await db.from("authors").select("username, bio, avatar").eq("username", listed.author).maybeSingle() : { data: null };
+        show(versions, author || { username: listed ? listed.author : "", bio: "" });
       } catch (e) {
         page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true));
       }
@@ -46,7 +48,9 @@
           el("div", {},
             el("h1", { class: "t-large" }, w.name),
             el("p", { class: "subtitle" }, w.description || categoryName(w.category)),
-            el("p", { class: "t-reduced" }, "By " + author),
+            el("div", { class: "byline" }, avatar(author, 32),
+              el("div", {}, el("div", { class: "t-reduced" }, "By " + author.username),
+                author.bio ? el("div", { class: "t-caption" }, author.bio) : null)),
             el("div", { class: "actions" },
               el("a", { class: "button", href: installUrl(id, w.version) }, "Get"),
               el("a", { class: "more", href: "#source" }, "View source")),

@@ -49,6 +49,31 @@ namespace DeskWidgets
             return Encoding.UTF8.GetString(Send(req));
         }
 
+        // Sends JSON (POST, PATCH...) with extra headers and returns the response body. A refusal from
+        // the server comes back as HttpError with the server's own message when it sent one.
+        internal static string SendJson(string method, string url, System.Collections.Generic.IDictionary<string, string> headers, string json)
+        {
+            var req = Request(url, null);
+            req.Method = method;
+            req.ContentType = "application/json";
+            foreach (var h in headers) req.Headers[h.Key] = h.Value;
+            byte[] data = Encoding.UTF8.GetBytes(json ?? "");
+            try
+            {
+                using (var s = req.GetRequestStream()) s.Write(data, 0, data.Length);
+                return Encoding.UTF8.GetString(Send(req));
+            }
+            catch (WebException e)
+            {
+                var resp = e.Response as HttpWebResponse;
+                if (resp == null) throw;
+                string body;
+                using (resp)
+                using (var r = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) body = r.ReadToEnd();
+                throw new HttpError((int)resp.StatusCode, body);
+            }
+        }
+
         static HttpWebRequest Request(string url, string bearer)
         {
             if (url.StartsWith("webcal://", StringComparison.OrdinalIgnoreCase)) url = "https://" + url.Substring(9);
@@ -70,6 +95,34 @@ namespace DeskWidgets
                 s.CopyTo(ms);
                 return ms.ToArray();
             }
+        }
+    }
+
+    // A request the server answered with an error status. Message is the server's explanation
+    // ("error", "message" or "msg" in a JSON body), or the status when it gave none.
+    sealed class HttpError : Exception
+    {
+        public readonly int Status;
+        public readonly string Body;
+
+        public HttpError(int status, string body) : base(Explain(status, body))
+        {
+            Status = status;
+            Body = body;
+        }
+
+        static string Explain(int status, string body)
+        {
+            try
+            {
+                var d = new System.Web.Script.Serialization.JavaScriptSerializer().DeserializeObject(body) as System.Collections.Generic.Dictionary<string, object>;
+                object v;
+                if (d != null)
+                    foreach (string key in new[] { "error_description", "error", "message", "msg" })
+                        if (d.TryGetValue(key, out v) && v is string && ((string)v).Length > 0) return (string)v;
+            }
+            catch (Exception) { }
+            return "The server answered " + status + ".";
         }
     }
 

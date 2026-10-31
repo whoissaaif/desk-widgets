@@ -94,6 +94,9 @@ namespace DeskWidgets
             Controls.Add(Box);
             Height = multiline ? WidgetWindow.Px(96) : Box.PreferredHeight + WidgetWindow.Px(14);
             Cursor = Cursors.IBeam;
+            // Tab goes straight to the text box; the frame itself never takes focus.
+            SetStyle(ControlStyles.Selectable, false);
+            TabStop = false;
         }
 
         protected override void OnLayout(LayoutEventArgs e)

@@ -146,5 +146,57 @@ for (const [what, src] of Object.entries(hidden)) {
 r = await upload('alice', 'u.alice.moon', 'class A\r\n{\r\n\tint x; // é ☾ 日本\r\n}\n');
 check('accepts CRLF, LF, tab and Unicode text', ok(r), r.error);
 
+// Accounts: invited people make their own profile once; only bio and photo change afterwards.
+const dave = '00000000-0000-0000-0000-00000000000d';
+U.dave = dave;
+await db.query(`insert into auth.users values ($1, 'dave@x')`, [dave]);
+r = await as('dave', `insert into public.profiles (id, username, bio) values ($1, 'alice', 'hi')`, [dave]);
+check('invitee cannot take a used username', !ok(r), r.error);
+r = await as('dave', `insert into public.profiles (id, username) values ($1, 'dave')`, [U.eve]);
+check('invitee cannot create a profile for someone else', !ok(r), r.error);
+r = await as('dave', `insert into public.profiles (id, username, bio, avatar) values ($1, 'dave', 'Makes clocks', 'AAAA')`, [dave]);
+check('invitee creates own profile', ok(r), r.error);
+r = await as('dave', `insert into public.profiles (id, username) values ($1, 'dave2')`, [dave]);
+check('only one profile each', !ok(r), r.error);
+r = await as('dave', `update public.profiles set bio = 'Makes calendars', avatar = null where id = $1`, [dave]);
+check('owner of a profile changes bio and photo', ok(r), r.error);
+r = await as('dave', `update public.profiles set bio = 'x' where id = $1 returning id`, [U.alice]);
+check("cannot change someone else's bio", ok(r) && r.rows.length === 0, JSON.stringify(r.rows || r.error));
+r = await as('dave', `update public.profiles set bio = repeat('x', 161) where id = $1`, [dave]);
+check('bio is capped', !ok(r), r.error);
+r = await as('dave', `update public.profiles set avatar = '<script>' where id = $1`, [dave]);
+check('photo must be base64', !ok(r), r.error);
+r = await as('anon', `select username, bio from public.authors where username = 'dave'`);
+check('anon reads public profile', ok(r) && r.rows[0] && r.rows[0].bio === 'Makes calendars', JSON.stringify(r.rows || r.error));
+r = await as('anon', `select * from public.authors limit 1`);
+check('authors view has no email', ok(r) && !Object.keys(r.rows[0]).some(k => /mail/.test(k)), JSON.stringify(r.rows || r.error));
+check('dave can upload after setup', ok(await as('dave', `insert into public.widgets (id, owner, slug) values ('u.dave.tick', $1, 'tick')`, [dave])));
+
+// Access requests: anyone may ask; only the owner sees and decides.
+r = await as('anon', `select public.request_access(' Zed@Example.com ')`);
+check('anon requests access', ok(r), r.error);
+r = await as('anon', `select public.request_access('zed@example.com')`);
+check('asking twice looks the same', ok(r), r.error);
+r = await as('anon', `select public.request_access('not an email')`);
+check('bad address refused', !ok(r), r.error);
+r = await as('anon', `select * from public.access_requests`);
+check('anon cannot read requests', !ok(r), r.error);
+r = await as('anon', `insert into public.access_requests (email) values ('x@y.z')`);
+check('anon cannot insert directly', !ok(r), r.error);
+r = await as('bob', `select * from public.access_requests`);
+check('uploaders see no requests', ok(r) && r.rows.length === 0, r.error || r.rows.length + ' rows');
+r = await as('owner', `select id, email, status from public.access_requests`);
+check('owner sees one lower-cased request', ok(r) && r.rows.length === 1 && r.rows[0].email === 'zed@example.com' && r.rows[0].status === 'pending',
+  JSON.stringify(r.rows || r.error));
+const reqId = r.rows && r.rows[0] && r.rows[0].id;
+r = await as('bob', `select public.reject_request($1)`, [reqId]);
+check('uploader cannot reject a request', !ok(r), r.error);
+r = await as('owner', `update public.access_requests set status = 'accepted'`);
+check('owner cannot update requests directly', !ok(r), r.error);
+r = await as('owner', `select public.reject_request($1)`, [reqId]);
+check('owner rejects a request', ok(r), r.error);
+r = await as('owner', `select public.reject_request($1)`, [reqId]);
+check('a decided request cannot be decided again', !ok(r), r.error);
+
 console.log(fails ? fails + ' FAILED' : 'all passed');
 process.exit(fails ? 1 : 0);

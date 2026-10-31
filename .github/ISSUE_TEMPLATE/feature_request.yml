@@ -1,0 +1,22 @@
+name: Idea
+description: A new built-in widget, or a way to make something better.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you'd like
+      description: What you want to see or do, and why. A sketch helps.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today instead
+  - type: checkboxes
+    id: community
+    attributes:
+      label: Could it be a community widget?
+      description: Most widgets don't need to be built in. Anyone invited can write one in C# and upload it.
+      options:
+        - label: It needs something community widgets can't do (say what above).

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Your Account · Desk Widgets</title>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <main class="content section narrow" id="page"></main>
+
+  <script type="module">
+    import { nav, el, notice, supabase, configured, me, toast, avatar } from "./assets/site.js";
+
+    nav("account");
+    const page = document.getElementById("page");
+    const PHOTO = 192, MIN_PASSWORD = 8;
+
+    // A picked image, center-cropped to a 192 px square JPEG, as base64 (about 10 to 20 KB).
+    async function photoFrom(file) {
+      const bitmap = await createImageBitmap(file);
+      const side = Math.min(bitmap.width, bitmap.height);
+      const canvas = Object.assign(document.createElement("canvas"), { width: PHOTO, height: PHOTO });
+      canvas.getContext("2d").drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, PHOTO, PHOTO);
+      bitmap.close();
+      for (const q of [0.85, 0.7, 0.5]) {
+        const b64 = canvas.toDataURL("image/jpeg", q).split(",")[1];
+        if (b64.length <= 60000) return b64;
+      }
+      throw new Error("too large");
+    }
+
+    function header(title, tail, intro) {
+      return [el("h1", { class: "t-section two-tone" }, title + " ", el("span", { class: "tail" }, tail)),
+              el("p", { class: "t-intro" }, intro)];
+    }
+
+    async function main() {
+      // An invite or password link that expired or was used already comes back with an error.
+      const hash = new URLSearchParams(location.hash.slice(1));
+      if (hash.get("error_description")) {
+        page.replaceChildren(...header("Link expired.", "", "Invite and sign-in links work once, for a day."),
+          el("div", { style: "margin-top: 40px" }, notice(hash.get("error_description") + ". Ask the owner to send your invite again, or use “Forgot your password” on the sign-in page.", true)),
+          el("div", { class: "actions" }, el("a", { class: "button", href: "login.html" }, "Go to Sign In")));
+        return;
+      }
+      if (!configured) { page.replaceChildren(notice("Accounts aren't connected yet.")); return; }
+      const who = await me();
+      if (!who) { location.replace("login.html?next=account.html"); return; }
+      const db = await supabase();
+      const fresh = !who.profile;
+      const arrivedByLink = /access_token=/.test(location.hash) || /type=(invite|magiclink|recovery)/.test(location.hash);
+      history.replaceState(null, "", location.pathname); // keep tokens out of the address bar
+
+      let photo = who.profile ? who.profile.avatar || null : null;
+      const preview = el("div", { class: "photo-preview" }, avatar({ username: who.profile && who.profile.username, avatar: photo }, 96));
+      const showPhoto = () => preview.replaceChildren(avatar({ username: username.value || (who.profile && who.profile.username), avatar: photo }, 96));
+
+      const username = el("input", { class: "input", id: "username", required: true, pattern: "[a-z0-9-]{2,24}", maxlength: "24",
+        autocapitalize: "none", spellcheck: "false", autocomplete: "username", placeholder: "moon-maker",
+        value: who.profile ? who.profile.username : "", disabled: !fresh });
+      username.addEventListener("input", () => { username.value = username.value.toLowerCase(); if (!photo) showPhoto(); });
+      const password = el("input", { class: "input", id: "password", type: "password", autocomplete: "new-password",
+        minlength: String(MIN_PASSWORD), required: fresh });
+      const bio = el("textarea", { class: "input short", id: "bio", maxlength: "160", placeholder: "I make clocks." });
+      bio.value = who.profile ? who.profile.bio || "" : "";
+      const file = el("input", { type: "file", id: "photo", accept: "image/png,image/jpeg,image/webp,image/gif" });
+      const removePhoto = el("button", { class: "button grey small", type: "button", hidden: !photo,
+        onclick: () => { photo = null; file.value = ""; removePhoto.hidden = true; showPhoto(); } }, "Remove Photo");
+      const result = el("div");
+      file.addEventListener("change", async () => {
+        if (!file.files[0]) return;
+        try { photo = await photoFrom(file.files[0]); removePhoto.hidden = false; showPhoto(); result.replaceChildren(); }
+        catch { result.replaceChildren(notice("That image couldn't be read. Try a PNG or JPEG.", true)); }
+      });
+
+      const button = el("button", { class: "button", type: "submit" }, fresh ? "Create Account" : "Save Changes");
+      const form = el("form", { class: "form", onsubmit: async e => {
+          e.preventDefault();
+          const fail = text => { button.disabled = false; result.replaceChildren(notice(text, true)); };
+          if (password.value && password.value.length < MIN_PASSWORD) return fail("Use at least " + MIN_PASSWORD + " characters for your password.");
+          button.disabled = true;
+          if (fresh) {
+            const { error } = await db.from("profiles").insert({ id: who.user.id, username: username.value, bio: bio.value.trim(), avatar: photo });
+            if (error) return fail(/username/.test(error.message) ? "The username " + username.value + " is taken. Try another."
+              : "Your account wasn't created: " + error.message);
+          } else {
+            const { error } = await db.from("profiles").update({ bio: bio.value.trim(), avatar: photo }).eq("id", who.user.id);
+            if (error) return fail("Your changes weren't saved: " + error.message);
+          }
+          if (password.value) {
+            const { error } = await db.auth.updateUser({ password: password.value });
+            if (error && error.code !== "same_password")
+              return fail((fresh ? "Your account was created, but the password wasn't set: " : "The password wasn't changed: ") + error.message +
+                (fresh ? " Reload this page to try again." : ""));
+          }
+          toast(fresh ? "Welcome, " + username.value + ". You're signed in." : "Saved.", true);
+          location.href = fresh ? "upload.html" : "account.html";
+        } },
+        el("div", { class: "field" }, el("label", { for: "username" }, "Username"), username,
+          el("span", { class: "hint" }, fresh ? "2 to 24 lowercase letters, digits or hyphens. You sign in with it, it's shown on your widgets and it's part of their ids, so it can't change later."
+                                              : "Usernames can't change.")),
+        el("div", { class: "field" }, el("label", { for: "password" }, fresh ? "Password" : "New Password"), password,
+          el("span", { class: "hint" }, fresh ? "At least " + MIN_PASSWORD + " characters." : "Leave empty to keep your password.")),
+        el("div", { class: "field" }, el("label", { for: "bio" }, "Bio (optional)"), bio,
+          el("span", { class: "hint" }, "One or two lines, shown on your widgets' pages.")),
+        el("div", { class: "field" }, el("label", { for: "photo" }, "Profile Photo (optional)"),
+          el("div", { class: "photo-row" }, preview, el("div", { class: "photo-actions" }, file, removePhoto)),
+          el("span", { class: "hint" }, "Cropped to a square.")),
+        el("div", {}, button),
+        result);
+
+      page.replaceChildren(
+        ...(fresh ? header("Welcome.", "Finish your account.", "Choose how you'll sign in and how people see you.")
+                  : header("Your account.", "", "Your photo and bio are public. Your email never is.")),
+        el("div", { style: "margin-top: 32px" },
+          fresh || arrivedByLink ? notice((fresh ? "You accepted the invite. " : "") + "You're signed in as " + who.user.email + "." +
+            (fresh ? "" : " Set a new password below if you need one.")) : null),
+        form);
+      if (fresh) { toast("Invite accepted. You're signed in."); username.focus(); }
+    }
+    main().catch(() => page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true)));
+  </script>
+</body>
+</html>
