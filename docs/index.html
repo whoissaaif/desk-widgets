@@ -3,79 +3,133 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Desk Widgets: Explore community widgets</title>
-  <meta name="description" content="Free, lightweight desktop widgets for Windows, and widgets made by the community.">
+  <title>Desk Widgets: lightweight desktop widgets for Windows</title>
+  <meta name="description" content="Free, open-source desktop widgets for Windows 10 and 11. Clock, calendar, weather, system, music and more, in about 33 MB of memory. Community widgets are reviewed before they appear.">
+  <meta property="og:title" content="Desk Widgets">
+  <meta property="og:description" content="Your desktop, at a glance. Lightweight widgets for Windows.">
+  <meta property="og:image" content="https://whoissaaif.github.io/desk-widgets/assets/img/calendar-dark.png">
   <link rel="stylesheet" href="assets/site.css">
 </head>
-<body>
-  <main class="content">
-    <section class="section">
+<body class="landing">
+  <main>
+    <!-- Hero: one product, one line, two actions, then the product itself (§2.1). -->
+    <section class="tile hero">
       <h1 class="t-hero">Your desktop, at a glance.</h1>
-      <p class="t-intro">Lightweight widgets for Windows. Reviewed widgets from the community install in one click.</p>
-      <div class="actions">
-        <a class="button" id="download">Download Desk Widgets</a>
+      <p class="tile-sub">Widgets for Windows that stay out of your way.</p>
+      <p class="availability">Free and open source · Windows 10 and 11 · Nothing else to install</p>
+      <div class="actions center">
+        <a class="button download" href="#">Download</a>
+        <a class="more" href="explore.html">Explore widgets</a>
+      </div>
+      <div class="desk" aria-label="Desk Widgets on a desktop">
+        <img class="w2" src="assets/img/calendar-dark.png" width="364" height="170" alt="Calendar widget: today's events beside the month">
+        <img src="assets/img/analog-clock-light.png" width="170" height="170" alt="Analog clock widget">
+        <img src="assets/img/focus-timer-light.png" width="170" height="170" alt="Focus timer widget at 25 minutes">
+        <img class="w2" src="assets/img/weather-light.png" width="364" height="170" alt="Weather widget: now, high and low, and the next hours">
+        <img src="assets/img/system-dark.png" width="170" height="170" alt="System widget: CPU, memory and disk">
+        <img src="assets/img/analog-clock-dark.png" width="170" height="170" alt="Analog clock widget with a dark dial">
+        <img class="w2" src="assets/img/now-playing-dark.png" width="364" height="170" alt="Now Playing widget with play, pause and skip">
+        <img class="w2" src="assets/img/github-dark.png" width="364" height="170" alt="GitHub widget: streak and contribution graph">
+      </div>
+    </section>
+
+    <!-- Light: the numbers as stat callouts (§2.2). -->
+    <section class="tile light">
+      <h2 class="t-section">Light. Really light.</h2>
+      <p class="tile-sub">Every widget runs in one small native process.</p>
+      <div class="stats">
+        <div><div class="stat">33 MB</div><div class="stat-caption">of memory with seven widgets on the desktop</div></div>
+        <div><div class="stat">0.3%</div><div class="stat-caption">of one CPU core while they update</div></div>
+        <div><div class="stat">0</div><div class="stat-caption">runtimes to install. It uses the .NET that ships with Windows</div></div>
+      </div>
+    </section>
+
+    <!-- Two half tiles. -->
+    <div class="halves">
+      <section class="tile half light">
+        <h2 class="t-section">Light or dark.</h2>
+        <p class="tile-sub">Or Vibrant, with your wallpaper blurred behind it.</p>
+        <div class="pair two">
+          <img src="assets/img/focus-timer-light.png" width="170" height="170" alt="Focus timer in the light appearance">
+          <img src="assets/img/focus-timer-dark.png" width="170" height="170" alt="Focus timer in the dark appearance">
+        </div>
+      </section>
+      <section class="tile half dark">
+        <h2 class="t-section">Private by default.</h2>
+        <p class="tile-sub">Tokens and calendar links are encrypted for your Windows account. Nothing is read until you choose.</p>
+        <div class="pair">
+          <img src="assets/img/reminders-light.png" width="364" height="170" alt="Reminders widget">
+        </div>
+      </section>
+    </div>
+
+    <!-- What's included. -->
+    <section class="tile light">
+      <h2 class="t-section">Everything you glance at.</h2>
+      <p class="tile-sub">Built in, and ready the moment you drag them out.</p>
+      <ul class="included">
+        <li><strong>Clocks</strong>Analog, dark and world clocks</li>
+        <li><strong>Calendar</strong>Today, next events and the month, from any .ics link</li>
+        <li><strong>Weather</strong>Now and the next hours, from Open-Meteo</li>
+        <li><strong>Focus Timer</strong>Start, pause, and it keeps going across restarts</li>
+        <li><strong>Reminders and Notes</strong>Type straight on the desktop</li>
+        <li><strong>System</strong>CPU, memory and disk</li>
+        <li><strong>Now Playing</strong>Spotify, browsers, Media Player</li>
+        <li><strong>Photo Frame</strong>A picture from your folder, GIFs too</li>
+        <li><strong>GitHub</strong>Profile, streak and contributions</li>
+        <li><strong>Formula 1</strong>Race hub and live timing</li>
+      </ul>
+    </section>
+
+    <!-- Community. -->
+    <section class="tile dark">
+      <h2 class="t-section">Made by people. Read by a person.</h2>
+      <p class="tile-sub">Community widgets are plain C#. The owner reads every version before it appears, and the app checks it's exactly that code before it runs.</p>
+      <div class="actions center">
+        <a class="button" href="explore.html">Explore widgets</a>
+        <a class="more on-dark" href="upload.html">Upload yours</a>
+      </div>
+    </section>
+
+    <!-- Make your own. -->
+    <section class="tile light">
+      <h2 class="t-section">Make your own.</h2>
+      <p class="tile-sub">One C# file. Draw with GDI+, and Desk Widgets compiles it on the PC.</p>
+      <pre class="code sample" aria-label="Example widget source"><span class="c">[DeskWidget(Name = "Hello", Description = "The smallest community widget")]</span>
+public sealed class HelloWidget : WidgetWindow
+{
+    public HelloWidget(Section s) : base(s) { }
+
+    protected override Size Measure() { return new Size(Px(170), Px(170)); }
+
+    protected override void Draw(Graphics g)
+    {
+        g.DrawString("Hello", font, Brushes.White, Px(16), Px(16));
+    }
+}</pre>
+      <div class="actions center">
+        <a class="more" id="sample">Read the full sample</a>
         <a class="more" href="upload.html">Upload a widget</a>
       </div>
+    </section>
 
-      <div class="toolbar">
-        <div class="segmented" role="group" aria-label="Category" id="filters"></div>
-        <input class="search" type="search" id="search" placeholder="Search widgets" aria-label="Search widgets">
+    <!-- Closing call to action. -->
+    <section class="tile closing">
+      <h2 class="t-section">Get Desk Widgets.</h2>
+      <p class="tile-sub">One file. Run it, and it's in your Start menu.</p>
+      <div class="actions center">
+        <a class="button download" href="#">Download for Windows</a>
+        <a class="more" id="source">Source on GitHub</a>
       </div>
-      <div id="status"></div>
-      <div class="grid" id="grid" aria-live="polite"></div>
-      <p class="t-caption" style="margin-top: 32px">Get opens Desk Widgets, which checks the widget and asks before installing it.</p>
     </section>
   </main>
 
   <script type="module">
-    import { nav, el, art, getButton, supabase, configured, CATEGORIES, categoryName, isValidId, notice, RELEASES_URL } from "./assets/site.js";
-
-    nav("explore");
-    document.getElementById("download").href = RELEASES_URL;
-
-    const grid = document.getElementById("grid"), status = document.getElementById("status");
-    const search = document.getElementById("search"), filters = document.getElementById("filters");
-    let widgets = [], category = null;
-
-    for (const [id, name] of [[null, "All"], ...CATEGORIES]) {
-      filters.append(el("button", { type: "button", "aria-pressed": String(id === category), onclick: () => {
-        category = id;
-        for (const b of filters.children) b.setAttribute("aria-pressed", String(b.dataset.id === String(id)));
-        render();
-      }, "data-id": String(id) }, name));
-    }
-    search.addEventListener("input", render);
-
-    function render() {
-      const q = search.value.trim().toLowerCase();
-      const shown = widgets.filter(w => (!category || w.category === category) &&
-        (!q || (w.name + " " + w.description + " " + w.author).toLowerCase().includes(q)));
-      grid.replaceChildren(...shown.map(w =>
-        el("article", { class: "tile" },
-          el("a", { href: "widget.html?id=" + encodeURIComponent(w.id), "aria-label": w.name }, art(w.preview, w.name)),
-          el("div", { class: "tile-row" },
-            el("div", { class: "text" },
-              el("a", { class: "name", href: "widget.html?id=" + encodeURIComponent(w.id), style: "color: inherit; display: block" }, w.name),
-              el("div", { class: "by" }, w.author + " · " + categoryName(w.category))),
-            getButton(w.id, w.version)))));
-      if (widgets.length && !shown.length) grid.replaceChildren(el("p", { class: "empty" }, "No widgets match."));
-    }
-
-    async function load() {
-      if (!configured) { status.replaceChildren(notice("The community gallery isn't connected yet. The built-in widgets come with the app.")); return; }
-      try {
-        const db = await supabase();
-        const { data, error } = await db.from("explore").select("*").order("reviewed_at", { ascending: false });
-        if (error) throw error;
-        widgets = (data || []).filter(w => isValidId(w.id));
-        if (!widgets.length) status.replaceChildren(el("div", { class: "empty" },
-          el("p", { class: "t-card" }, "Nothing here yet."), el("p", {}, "Reviewed community widgets will appear here.")));
-        render();
-      } catch (e) {
-        status.replaceChildren(notice("The gallery couldn't load. Check your connection and reload the page.", true));
-      }
-    }
-    load();
+    import { nav, DOWNLOAD_URL, REPO_URL } from "./assets/site.js";
+    nav("home");
+    for (const a of document.querySelectorAll(".download")) a.href = DOWNLOAD_URL;
+    document.getElementById("sample").href = REPO_URL + "/blob/main/samples/HelloWidget.cs";
+    document.getElementById("source").href = REPO_URL;
   </script>
 </body>
 </html>

@@ -1,9 +1,9 @@
 // Shared helpers for every page. Everything people type or upload reaches the page through
 // textContent (el()), never innerHTML, and ids/previews are re-validated here even though the
 // database already checks them.
-import { SUPABASE_URL, SUPABASE_ANON_KEY, RELEASES_URL } from "../config.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, RELEASES_URL, DOWNLOAD_URL, REPO_URL } from "../config.js";
 
-export { RELEASES_URL };
+export { RELEASES_URL, DOWNLOAD_URL, REPO_URL };
 
 // The same categories as the app (WidgetRegistry.Categories) and the database check.
 export const CATEGORIES = [
@@ -18,13 +18,13 @@ const BASE64 = /^[A-Za-z0-9+/=]+$/;
 
 export const configured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
+// One client per page, even when the nav and the page ask at the same time (two would both try to
+// read an invite link's session from the address).
 let client;
-export async function supabase() {
-  if (!configured) throw new Error("The gallery isn't connected to its database yet.");
-  if (!client) {
-    const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm");
-    client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  }
+export function supabase() {
+  if (!configured) return Promise.reject(new Error("The gallery isn't connected to its database yet."));
+  if (!client) client = import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm")
+    .then(({ createClient }) => createClient(SUPABASE_URL, SUPABASE_ANON_KEY));
   return client;
 }
 
@@ -40,55 +40,122 @@ export function el(tag, attrs = {}, ...children) {
   return node;
 }
 
+// The global nav: pages on the left, then the account at the right (Sign In, or your photo with a
+// menu; Admin for the owner). Shows any message a previous page left for this one (toast()).
 export function nav(current) {
   const link = (href, text, key) => el("a", { class: "link", href, "aria-current": current === key ? "page" : null }, text);
+  const account = el("div", { class: "account" });
   document.body.prepend(el("nav", { class: "nav", "aria-label": "Site" },
     el("div", { class: "inner" },
       el("a", { class: "brand", href: "./" }, "Desk Widgets"),
-      link("./", "Explore", "explore"),
+      link("explore.html", "Explore", "explore"),
       link("upload.html", "Upload", "upload"),
-      el("a", { class: "link", href: RELEASES_URL }, "Download ↗"))));
+      el("a", { class: "link", href: DOWNLOAD_URL }, "Download"),
+      account)));
   document.body.append(el("footer", { class: "footer" },
     el("div", { class: "content" },
       "Desk Widgets is free and open source. Community widgets are reviewed before they appear here. ",
-      el("a", { href: "https://github.com/whoissaaif/desk-widgets" }, "Source on GitHub"))));
-  account(current).catch(() => {});
+      el("a", { href: REPO_URL }, "Source on GitHub"))));
+  showPendingToast();
+  accountNav(account, current).catch(() => account.replaceChildren(signInLink(current)));
 }
 
-// Invite and sign-in links come back to whichever page Supabase was told, with the result in the
-// URL fragment (#access_token=... or #error=...). Every page finishes that here: on success it goes
-// to Review (owner) or Upload (uploader), on failure it says why. Signed in, the nav shows Review.
-async function account(current) {
-  if (!configured) return;
+const signInLink = current => el("a", { class: "link", href: "login.html?next=" + encodeURIComponent(location.pathname.split("/").pop() || "./"),
+  "aria-current": current === "login" ? "page" : null }, "Sign In");
+
+// Only loads the database client when there may be a session, so signed-out visitors stay fast.
+export function maybeSignedIn() {
+  return configured && (/access_token=|error_description=/.test(location.hash) ||
+    Object.keys(localStorage).some(k => k.startsWith("sb-") && k.endsWith("-auth-token")));
+}
+
+// The signed-in person's profile (null when there's none yet) and whether they're the owner.
+export async function me() {
+  if (!maybeSignedIn()) return null;
+  const db = await supabase();
+  const { data: { session } } = await db.auth.getSession();
+  if (!session) return null;
+  const [{ data: profile }, { data: admin }] = await Promise.all([
+    db.from("profiles").select("username, bio, avatar").eq("id", session.user.id).maybeSingle(),
+    db.rpc("is_admin"),
+  ]);
+  return { user: session.user, profile, admin: Boolean(admin) };
+}
+
+// Invite and sign-in links come back to whichever page Supabase was told (or the site root), with
+// the result in the address (#access_token=... or #error=...). Every page finishes that here; the
+// account page shows its own message.
+async function accountNav(host, current) {
   const hash = new URLSearchParams(location.hash.slice(1));
-  const arriving = hash.has("access_token") || hash.has("error") || hash.has("error_description");
-  if (hash.has("error") || hash.has("error_description")) {
+  if ((hash.has("error") || hash.has("error_description")) && current !== "account") {
     history.replaceState(null, "", location.pathname + location.search); // no error text left in the address bar
     const why = (hash.get("error_description") || hash.get("error") || "").replace(/\+/g, " ");
     const main = document.querySelector("main");
-    if (main) main.prepend(notice("That sign-in link didn't work" + (why ? " (" + why + ")" : "") +
-      ". Links expire after a while and work once; ask the owner for a new invite, or request a new link on the Upload page.", true));
+    if (main) main.prepend(notice("That link didn't work" + (why ? " (" + why + ")" : "") +
+      ". Links expire after a day and work once. Ask the owner to send your invite again, or use “Forgot your password” on the sign-in page.", true));
+    host.replaceChildren(signInLink(current));
     return;
   }
-  if (!arriving && !hasStoredSession()) return; // nothing to do: don't load the client on every visit
-  const db = await supabase(); // reads a session from the URL fragment, if there is one
-  const { data: { session } } = await db.auth.getSession();
-  if (!session) return;
-  const { data: isAdmin } = await db.rpc("is_admin");
-  if (arriving) {
-    location.replace(isAdmin ? "admin.html" : "upload.html");
-    return;
+  const arriving = hash.has("access_token");
+  const who = await me();
+  if (!who) { host.replaceChildren(signInLink(current)); return; }
+  if (arriving && current !== "account") {
+    history.replaceState(null, "", location.pathname + location.search);
+    if (!who.profile) { location.replace("account.html"); return; } // finish setting up first
+    toast("You're signed in as " + who.profile.username + ".");
   }
-  if (isAdmin && current !== "review") {
-    const links = document.querySelector(".nav .inner");
-    const upload = links && links.querySelector('a[href="upload.html"]');
-    if (upload) upload.after(el("a", { class: "link", href: "admin.html" }, "Review"));
-  }
+  const name = who.profile ? who.profile.username : who.user.email;
+  const close = () => { menu.hidden = true; button.setAttribute("aria-expanded", "false"); };
+  const item = (href, text) => el("a", { role: "menuitem", href }, text);
+  const menu = el("div", { class: "menu", role: "menu", hidden: true },
+    el("div", { class: "who" }, avatar(who.profile, 40),
+      el("div", {}, el("div", { class: "t-headline" }, name), el("div", { class: "t-caption" }, who.admin ? "Owner" : "Signed in"))),
+    who.profile ? item("upload.html#uploads", "Your Uploads") : null,
+    item("account.html", who.profile ? "Edit Profile" : "Finish Setting Up"),
+    who.admin ? item("admin.html", "Admin Console") : null,
+    el("hr"),
+    el("button", { type: "button", role: "menuitem", onclick: async () => {
+      await (await supabase()).auth.signOut();
+      toast("You're signed out.", true);
+      location.href = "./";
+    } }, "Sign Out"));
+  const button = el("button", { type: "button", class: "avatar-button", "aria-haspopup": "menu", "aria-expanded": "false",
+    "aria-label": "Account: " + name, onclick: e => {
+      e.stopPropagation();
+      const open = menu.hidden;
+      menu.hidden = !open;
+      button.setAttribute("aria-expanded", String(open));
+      if (open) menu.querySelector("[role=menuitem]").focus();
+    } }, avatar(who.profile, 28));
+  document.addEventListener("click", e => { if (!menu.contains(e.target)) close(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !menu.hidden) { close(); button.focus(); } });
+  host.replaceChildren(
+    who.admin ? el("a", { class: "link", href: "admin.html", "aria-current": current === "admin" ? "page" : null }, "Admin") : null,
+    button, menu);
 }
 
-// supabase-js keeps the session in localStorage under sb-<project>-auth-token.
-function hasStoredSession() {
-  try { return Object.keys(localStorage).some(k => /^sb-.*-auth-token$/.test(k)); } catch { return false; }
+// A round profile photo, or the first letter of the name on grey.
+export function avatar(profile, size) {
+  const style = "width:" + size + "px;height:" + size + "px";
+  if (profile && isPhoto(profile.avatar))
+    return el("img", { class: "avatar", style, src: "data:image/jpeg;base64," + profile.avatar, alt: "" });
+  const letter = profile && profile.username ? profile.username[0].toUpperCase() : "";
+  return el("span", { class: "avatar", style: style + ";font-size:" + Math.round(size * 0.45) + "px", "aria-hidden": "true" }, letter);
+}
+export const isPhoto = b64 => typeof b64 === "string" && b64.length > 0 && b64.length <= 60000 && BASE64.test(b64);
+
+// A short confirmation at the top of the page. With later, it waits for the next page load (for
+// messages about a redirect, like "You're signed in").
+export function toast(text, later = false) {
+  if (later) { sessionStorage.setItem("dw-toast", text); return; }
+  const t = el("div", { class: "toast", role: "status" }, text);
+  document.body.append(t);
+  setTimeout(() => t.classList.add("gone"), 4000);
+  setTimeout(() => t.remove(), 4600);
+}
+function showPendingToast() {
+  const text = sessionStorage.getItem("dw-toast");
+  if (text) { sessionStorage.removeItem("dw-toast"); toast(text); }
 }
 
 // A widget's preview as an <img>, or a quiet placeholder.

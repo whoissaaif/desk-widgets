@@ -9,25 +9,40 @@
 <body>
   <main class="content section">
     <h1 class="t-section two-tone">Upload. <span class="tail">Send a widget for review.</span></h1>
-    <p class="t-intro">Uploading is by invitation. The owner reads every version before anyone can install it.</p>
+    <p class="t-intro">The owner reads every version before anyone can install it.</p>
     <div id="page" style="margin-top: 40px"></div>
   </main>
 
   <script type="module">
-    import { nav, el, notice, supabase, CATEGORIES, formatDate, hiddenCharacters } from "./assets/site.js";
-    import { signedIn, signOutLink } from "./assets/account.js";
+    import { nav, el, notice, supabase, configured, me, CATEGORIES, formatDate, hiddenCharacters, toast } from "./assets/site.js";
+    import { requestAccessForm } from "./assets/account.js";
 
     nav("upload");
     const page = document.getElementById("page");
     const MAX_SOURCE = 512 * 1024, MAX_PREVIEW = 100 * 1024;
 
+    // Signed out: ask for access, or sign in.
+    function signedOut() {
+      page.replaceChildren(
+        el("div", { class: "split" },
+          el("section", { id: "request" },
+            el("h2", { class: "t-card" }, "Request access."),
+            el("p", { class: "t-reduced" }, "Uploading is by invitation. Leave your email; if the owner accepts, you'll get an invite to set up your account."),
+            requestAccessForm()),
+          el("section", {},
+            el("h2", { class: "t-card" }, "Have an account?"),
+            el("p", { class: "t-reduced" }, "Sign in with your username and password."),
+            el("div", { class: "actions" }, el("a", { class: "button secondary", href: "login.html?next=upload.html" }, "Sign In")))));
+      if (location.hash === "#request") document.getElementById("request-email").focus();
+    }
+
     async function main() {
-      const user = await signedIn(page, "We'll email you a link. Only invited addresses can sign in.");
-      if (!user) return;
+      if (!configured) { page.replaceChildren(notice("Uploads aren't connected yet.")); return; }
+      const who = await me();
+      if (!who) return signedOut();
+      if (!who.profile) { location.replace("account.html"); return; }
+      const user = who.user, username = who.profile.username;
       const db = await supabase();
-      const { data: profile } = await db.from("profiles").select("username").eq("id", user.id).maybeSingle();
-      if (!profile) { page.replaceChildren(notice("Your account isn't set up for uploads. Ask the owner for an invite.", true)); return; }
-      const username = profile.username;
 
       const { data: mine } = await db.from("widgets").select("id, slug").eq("owner", user.id).order("id");
       const { data: versions } = await db.from("versions").select("widget_id, version, name, status, created_at")
@@ -88,8 +103,8 @@
             description: description.value.trim(), api_version: 1, source: text, preview,
           });
           if (error) return fail("It wasn't sent: " + error.message);
-          result.replaceChildren(notice("Sent for review. It shows here as Pending until the owner approves it."));
-          setTimeout(() => location.reload(), 1500);
+          toast("Sent for review. It shows under Your Uploads as Pending until the owner approves it.", true);
+          location.reload();
         } },
         el("div", { class: "field" }, el("label", { for: "which" }, "Widget"), which,
           el("span", { class: "hint" }, "Pick one of yours to send a new version, or start a new widget.")),
@@ -114,9 +129,9 @@
         : el("p", { class: "t-reduced" }, "Nothing sent yet.");
 
       page.replaceChildren(
-        el("p", { class: "t-reduced" }, "Signed in as " + username + ". ", await signOutLink()),
+        el("p", { class: "t-reduced" }, "Signed in as " + username + "."),
         form,
-        el("h2", { class: "block" }, "Your Uploads"),
+        el("h2", { class: "block", id: "uploads" }, "Your Uploads"),
         list);
     }
     main().catch(() => page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true)));
