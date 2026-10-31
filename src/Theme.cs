@@ -6,6 +6,8 @@ using Microsoft.Win32;
 
 namespace DeskWidgets
 {
+    enum AppTheme { System, Light, Dark }
+
     // design/apple-design.md as the app's own UI uses it (library window, dialogs, menus). Every
     // color, font and radius comes from here. Light and dark follow the Windows app theme, the way
     // Apple apps follow the system appearance. Widgets have their own palettes in CardWidget.
@@ -13,6 +15,17 @@ namespace DeskWidgets
     {
         static bool dark = ReadDark();
         public static bool Dark { get { return dark; } }
+        static AppTheme appearance = AppTheme.System;
+        public static AppTheme Appearance
+        {
+            get { return appearance; }
+            set
+            {
+                if (value == appearance) return;
+                appearance = value;
+                Refresh();
+            }
+        }
 
         // Raised when Windows switches between light and dark.
         public static event Action Changed;
@@ -27,6 +40,8 @@ namespace DeskWidgets
 
         static bool ReadDark()
         {
+            if (appearance == AppTheme.Light) return false;
+            if (appearance == AppTheme.Dark) return true;
             using (var k = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
                 return k != null && k.GetValue("AppsUseLightTheme") is int && (int)k.GetValue("AppsUseLightTheme") == 0;
         }
@@ -79,6 +94,15 @@ namespace DeskWidgets
             using (var path = RoundRect(r, radius))
             using (var b = new SolidBrush(c))
                 g.FillPath(b, path);
+        }
+
+        public static Color Blend(Color a, Color b, float t)
+        {
+            return Color.FromArgb(
+                a.A + (int)((b.A - a.A) * t),
+                a.R + (int)((b.R - a.R) * t),
+                a.G + (int)((b.G - a.G) * t),
+                a.B + (int)((b.B - a.B) * t));
         }
 
         // ---- type (§3) ----

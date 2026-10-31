@@ -765,8 +765,20 @@ text. One Primary per group.
 - Empty and loading states: a centered 22/700 title and one 13 px line, both secondary ("No
   Installed Widgets", "Loading…", "Explore Couldn’t Load").
 
-### 17.8 Accounts
-- **App**: the account is the last row of the sidebar above "Start with Windows": your photo
+### 17.8 Settings
+The Settings page opens from the gear icon at the bottom of the sidebar (below the nav,
+above the account row) or from "Settings…" in the tray menu:
+- **Start with Windows**: a toggle row (the same `SidebarItem` switch style as before).
+- **Appearance**: a group label ("Appearance" in 12/600 secondary), then three selectable rows
+  — System, Light, Dark — with a checkmark glyph on the active choice and a selection
+  highlight. Picking one persists the choice in the `[app]` config section and immediately
+  switches the library and all dialogs.
+- **Uninstall Desk Widgets**: a Destructive pill button at the bottom. Confirms with an alert
+  (Cancel default, Uninstall red), then removes the autostart entry, Start menu shortcut,
+  URL protocol, settings and caches, and exits.
+
+### 17.9 Accounts
+- **App**: the account is the last row of the sidebar above Settings: your photo
   (22 px circle) and username, or the person glyph and "Sign In". Signed out, it opens the sign-in
   sheet (Username, Password; "Request Access" on the left). Signed in, it opens a menu: Upload a
   Widget…, Your Uploads ↗, Edit Profile ↗, Admin Console ↗ (owner only), then Sign Out. Signing in
@@ -780,25 +792,25 @@ text. One Primary per group.
 - **Toasts** confirm what just happened ("Signed in as saif.", "Request sent."): a glass-like
   capsule under the nav, 14/600, gone after 4 s. Use them only for confirmations, never errors.
 
-### 17.9 Landing page
+### 17.10 Landing page
 `docs/index.html` follows the marketing homepage (§2.1): full-bleed tiles with 12 px gutters,
 gutters only between tiles (the hero sits flush under the nav, no gap above it),
 alternating grey and black, each with a centered headline, one line, actions and real widget
 renders (`docs/assets/img`, made from the widgets' own previews at 2×). Stats use the callout
 style (§2.2). The gallery itself is `explore.html`.
 
-### 17.10 Website
+### 17.11 Website
 `docs/assets/site.css` implements §14 with the light and dark tokens of §4: the 44 px glass nav,
 a 980 px column (1024 with 22 px gutters), a 56/60 hero with a two-tone intro, the pill segmented
 filter, tiles at r18 with a Tinted **Get**, an App Store-style widget page (info strip of Version,
 Category, Reviewed, Size, Needs) and grouped lists for uploads. Everything people upload reaches
 the page as text, never as HTML.
 
-### 17.11 Writing
+### 17.12 Writing
 Buttons and menu items use title style ("Add to Desktop", "Show Source", "Remove Widget");
 descriptions and messages are plain sentences. Errors say what happened and what to do.
 
-### 17.12 Widget sizes and data colors
+### 17.13 Widget sizes and data colors
 - Sizes are Apple's: small 170 × 170 pt, medium 364 × 170, large 364 × 382 (`CardWidget.CardSize`),
   22 pt corners and 16 pt margins. In the library a large widget's preview shrinks into a normal card.
 - Colors a data source sends are content, not styling: F1 team colors (OpenF1 and F1's feed send

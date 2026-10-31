@@ -126,6 +126,7 @@ namespace DeskWidgets
                 else if (e.Button == MouseButtons.Right) ShowAppMenu();
             };
 
+            LoadAppTheme();
             // Never touch the autostart entry on launch: it only changes when the user toggles it.
             EnsureStartMenuShortcut();
             EnsureUrlProtocol();
@@ -136,7 +137,7 @@ namespace DeskWidgets
             showLibraryWait = ThreadPool.RegisterWaitForSingleObject(showLibrary,
                 delegate { messageWindow.PostOpenLibrary(); }, null, Timeout.Infinite, false);
 
-            if (openWindow || config.Sections.Count == 0) OpenLibrary();
+            if (openWindow || !config.Sections.Exists(s => s.Name != "app")) OpenLibrary();
             if (url != null) Ui.Later(delegate { Community.HandleUrl(url); }, 300);
 
             // Newer approved versions of installed community widgets: shortly after start, then daily.
@@ -352,6 +353,7 @@ namespace DeskWidgets
             var menu = new PopupMenu();
             menu.Add("Open " + AppName, OpenLibrary);
             menu.AddCheck("Start with Windows", StartWithWindows, delegate { StartWithWindows = !StartWithWindows; });
+            menu.Add("Settings…", delegate { OpenLibrary(); if (library != null) library.OpenSettings(); });
             menu.AddSeparator();
             menu.Add("Quit " + AppName, Exit);
             menu.Show(Cursor.Position);
@@ -562,6 +564,72 @@ namespace DeskWidgets
         void OnWallpaperFile(object sender, FileSystemEventArgs e)
         {
             RunOnUi(delegate { wallpaperDebounce.Stop(); wallpaperDebounce.Start(); });
+        }
+
+        // ---- app-level settings (stored in an [app] section of widgets.ini) ----
+
+        Section AppSection
+        {
+            get
+            {
+                var s = config.Sections.FirstOrDefault(x => x.Name == "app");
+                if (s == null) { s = new Section("app") { Owner = config }; config.Sections.Insert(0, s); }
+                return s;
+            }
+        }
+
+        void LoadAppTheme()
+        {
+            string v = AppSection.Get("appearance", "system").ToLowerInvariant();
+            if (v == "light") Theme.Appearance = AppTheme.Light;
+            else if (v == "dark") Theme.Appearance = AppTheme.Dark;
+            else Theme.Appearance = AppTheme.System;
+        }
+
+        public AppTheme AppThemeChoice
+        {
+            get { return Theme.Appearance; }
+            set
+            {
+                Theme.Appearance = value;
+                string name = value == AppTheme.Light ? "light" : value == AppTheme.Dark ? "dark" : "system";
+                AppSection.Set("appearance", name);
+            }
+        }
+
+        // ---- uninstall the app itself ----
+
+        public void UninstallApp()
+        {
+            if (!AlertDialog.Confirm("Uninstall Desk Widgets?",
+                "This removes the app from your Start menu and startup, and deletes its settings and caches. " +
+                "You can delete the app folder yourself afterwards.", "Uninstall"))
+                return;
+
+            // Remove autostart entry.
+            StartWithWindows = false;
+
+            // Remove Start menu shortcut.
+            try
+            {
+                string lnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), AppName + ".lnk");
+                if (File.Exists(lnk)) File.Delete(lnk);
+            }
+            catch (Exception) { }
+
+            // Remove URL protocol registration.
+            try { Registry.CurrentUser.DeleteSubKeyTree(ProtocolKey, false); }
+            catch (Exception) { }
+
+            // Delete settings and caches.
+            string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DeskWidgets");
+            string localData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DeskWidgets");
+            try { if (Directory.Exists(appData)) Directory.Delete(appData, true); }
+            catch (Exception) { }
+            try { if (Directory.Exists(localData)) Directory.Delete(localData, true); }
+            catch (Exception) { }
+
+            Exit();
         }
 
         void Exit()

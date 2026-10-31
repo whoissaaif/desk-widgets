@@ -13,7 +13,7 @@ namespace DeskWidgets
     // exists while open, so it costs nothing the rest of the time.
     sealed class LibraryWindow : Form
     {
-        const string InstalledPage = "@installed", ExplorePage = "@explore";
+        const string InstalledPage = "@installed", ExplorePage = "@explore", SettingsPage = "@settings";
 
         sealed class Section
         {
@@ -35,8 +35,12 @@ namespace DeskWidgets
         readonly List<WidgetCard> installedCards = new List<WidgetCard>();
         readonly List<PluginRow> turnedOff = new List<PluginRow>();
         readonly List<SidebarItem> nav = new List<SidebarItem>();
-        readonly SidebarItem startup, account;
-        string page; // category id, InstalledPage, or null for all widgets
+        readonly SidebarItem settings, account;
+        SidebarItem startupToggle;
+        Label settingsAppearanceLabel;
+        SidebarItem[] themeItems;
+        PillButton uninstallButton;
+        string page; // category id, InstalledPage, SettingsPage, or null for all widgets
 
         public LibraryWindow()
         {
@@ -50,7 +54,7 @@ namespace DeskWidgets
             ClientSize = new Size(Px(980), Px(640));
             MinimumSize = new Size(Px(640), Px(420));
 
-            content = new SmoothPanel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.WindowBg };
+            content = new SmoothPanel { Dock = DockStyle.Fill, BackColor = Theme.WindowBg };
             content.HandleCreated += delegate { Theme.ApplyToScrollbars(content.Handle); };
             header = new PageHeader();
             content.Controls.Add(header);
@@ -69,16 +73,12 @@ namespace DeskWidgets
 
             sidebar = new Panel { Dock = DockStyle.Left, Width = Px(260), BackColor = Theme.SidebarBg };
             BuildNav();
-            startup = new SidebarItem('', "Start with Windows") { Toggle = true, On = App.StartWithWindows };
-            startup.SetBounds(Px(12), sidebar.Height - Px(50), sidebar.Width - Px(24), Px(34));
-            startup.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
-            startup.Click += delegate
-            {
-                App.StartWithWindows = !App.StartWithWindows;
-                startup.On = App.StartWithWindows;
-                startup.Invalidate();
-            };
-            sidebar.Controls.Add(startup);
+            settings = new SidebarItem('', "Settings");
+            settings.SetBounds(Px(12), sidebar.Height - Px(50), sidebar.Width - Px(24), Px(34));
+            settings.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
+            settings.Click += delegate { ShowPage(SettingsPage); };
+            sidebar.Controls.Add(settings);
+            BuildSettingsControls();
             // The account sits at the bottom of the sidebar (§8.11): your photo and name, or Sign In.
             account = new SidebarItem('\uE77B', "");
             account.SetBounds(Px(12), sidebar.Height - Px(88), sidebar.Width - Px(24), Px(34));
@@ -98,6 +98,8 @@ namespace DeskWidgets
         }
 
         static int Px(float v) { return WidgetWindow.Px(v); }
+
+        public void OpenSettings() { ShowPage(SettingsPage); }
 
         // ---- building ----
 
@@ -166,7 +168,7 @@ namespace DeskWidgets
 
         void BuildNav()
         {
-            foreach (var c in sidebar.Controls.Cast<Control>().Where(c => c != startup && c != account).ToArray()) { sidebar.Controls.Remove(c); c.Dispose(); }
+            foreach (var c in sidebar.Controls.Cast<Control>().Where(c => c != settings && c != account).ToArray()) { sidebar.Controls.Remove(c); c.Dispose(); }
             nav.Clear();
             var title = new Label { Text = "Desk Widgets", Font = Theme.Title3, ForeColor = Theme.Label, AutoSize = true, Location = new Point(Px(24), Px(22)) };
             sidebar.Controls.Add(title);
@@ -207,8 +209,12 @@ namespace DeskWidgets
                 item.Selected = (string)item.Tag == target;
                 item.Invalidate();
             }
+            settings.Selected = target == SettingsPage;
+            settings.Invalidate();
             var cat = sections.Select(s => s.Category).FirstOrDefault(c => c.Id == target);
-            if (target == ExplorePage)
+            if (target == SettingsPage)
+                header.Set("Settings", "");
+            else if (target == ExplorePage)
             {
                 header.Set("Explore", "Widgets made by the community. Each one is reviewed before it appears here.");
                 if (!exploreLoading) LoadExplore(); // every visit, so newly approved widgets show up
@@ -229,27 +235,33 @@ namespace DeskWidgets
         {
             int pad = Px(32), gap = Px(20);
             int width = Math.Max(Px(200), content.ClientSize.Width - pad * 2);
-            int scroll = content.AutoScrollPosition.Y;
             int y = Px(28);
             content.SuspendLayout();
-            bool installed = page == InstalledPage, explore = page == ExplorePage;
+            bool installed = page == InstalledPage, explore = page == ExplorePage, settingsOpen = page == SettingsPage;
 
             PillButton action = installed ? installButton : explore ? uploadButton : null;
             header.Width = width - (action != null ? action.Width + gap : 0);
-            header.Location = new Point(pad, y + scroll);
+            header.Location = new Point(pad, y);
             installButton.Visible = installed;
             uploadButton.Visible = explore;
-            if (action != null) action.Location = new Point(pad + width - action.Width, y + scroll + Px(6));
+            if (action != null) action.Location = new Point(pad + width - action.Width, y + Px(6));
             y += header.Height + Px(24);
+
+            // Settings page controls.
+            startupToggle.Visible = settingsOpen;
+            settingsAppearanceLabel.Visible = settingsOpen;
+            uninstallButton.Visible = settingsOpen;
+            foreach (var t in themeItems) t.Visible = settingsOpen;
+            if (settingsOpen) y = LayoutSettings(pad, width, y);
 
             foreach (var card in exploreCards) card.Visible = explore;
             exploreState.Visible = explore && exploreCards.Count == 0;
             if (exploreState.Visible)
             {
-                exploreState.SetBounds(pad, y + scroll + Px(80), width, exploreState.Height);
+                exploreState.SetBounds(pad, y + Px(80), width, exploreState.Height);
                 y += Px(80) + exploreState.Height;
             }
-            if (explore) y = Grid(exploreCards, pad, width, y, scroll) + Px(32);
+            if (explore) y = Grid(exploreCards, pad, width, y) + Px(32);
 
             foreach (var sec in sections)
             {
@@ -259,10 +271,10 @@ namespace DeskWidgets
                 if (!show) continue;
                 if (page == null)
                 {
-                    sec.Header.SetBounds(pad, y + scroll, width, sec.Header.Height);
+                    sec.Header.SetBounds(pad, y, width, sec.Header.Height);
                     y += sec.Header.Height + Px(12);
                 }
-                y = Grid(sec.Cards, pad, width, y, scroll) + Px(32);
+                y = Grid(sec.Cards, pad, width, y) + Px(32);
             }
 
             foreach (var card in installedCards) card.Visible = installed;
@@ -271,44 +283,110 @@ namespace DeskWidgets
             noneInstalled.Visible = installed && installedCards.Count == 0 && turnedOff.Count == 0;
             if (noneInstalled.Visible)
             {
-                noneInstalled.SetBounds(pad, y + scroll + Px(80), width, noneInstalled.Height);
+                noneInstalled.SetBounds(pad, y + Px(80), width, noneInstalled.Height);
                 y += Px(80) + noneInstalled.Height;
             }
             if (installed)
             {
-                y = Group(updates, pad, width, y, scroll);
-                if (installedCards.Count > 0) y = Grid(installedCards, pad, width, y, scroll) + Px(32);
-                y = Group(turnedOff, pad, width, y, scroll);
+                y = Group(updates, pad, width, y);
+                if (installedCards.Count > 0) y = Grid(installedCards, pad, width, y) + Px(32);
+                y = Group(turnedOff, pad, width, y);
             }
-            content.AutoScrollMinSize = new Size(0, y + Px(32));
+            content.ContentHeight = y + Px(32);
             content.ResumeLayout();
         }
 
         // Cards flow left to right and wrap; medium widgets have double-width cards.
-        int Grid<T>(List<T> cards, int pad, int width, int y, int scroll) where T : Control
+        int Grid<T>(List<T> cards, int pad, int width, int y) where T : Control
         {
             if (cards.Count == 0) return y;
             int gap = Px(20), x = pad, h = cards[0].Height;
             foreach (var card in cards)
             {
                 if (x > pad && x + card.Width > pad + width) { x = pad; y += h + gap; }
-                card.Location = new Point(x, y + scroll);
+                card.Location = new Point(x, y);
                 x += card.Width + gap;
             }
             return y + h;
         }
 
         // Rows stacked into one grouped inset list.
-        int Group(List<PluginRow> rows, int pad, int width, int y, int scroll)
+        int Group(List<PluginRow> rows, int pad, int width, int y)
         {
             for (int i = 0; i < rows.Count; i++)
             {
                 rows[i].First = i == 0;
                 rows[i].Last = i == rows.Count - 1;
-                rows[i].SetBounds(pad, y + scroll, width, rows[i].Height);
+                rows[i].SetBounds(pad, y, width, rows[i].Height);
                 y += rows[i].Height;
             }
             return rows.Count > 0 ? y + Px(32) : y;
+        }
+
+        // ---- Settings page ----
+
+        void BuildSettingsControls()
+        {
+            startupToggle = new SidebarItem('', "Start with Windows") { Toggle = true, On = App.StartWithWindows };
+            startupToggle.Click += delegate
+            {
+                App.StartWithWindows = !App.StartWithWindows;
+                startupToggle.On = App.StartWithWindows;
+                startupToggle.Invalidate();
+            };
+            content.Controls.Add(startupToggle);
+
+            settingsAppearanceLabel = new Label { Text = "Appearance", Font = Theme.CaptionEmphasized, ForeColor = Theme.Label2, AutoSize = true };
+            content.Controls.Add(settingsAppearanceLabel);
+
+            string[] labels = { "System", "Light", "Dark" };
+            AppTheme[] values = { AppTheme.System, AppTheme.Light, AppTheme.Dark };
+            themeItems = new SidebarItem[labels.Length];
+            for (int i = 0; i < labels.Length; i++)
+            {
+                int idx = i;
+                bool active = App.Current.AppThemeChoice == values[i];
+                var item = new SidebarItem(active ? '' : '\0', labels[i]) { Selected = active };
+                item.Click += delegate
+                {
+                    App.Current.AppThemeChoice = values[idx];
+                    for (int j = 0; j < themeItems.Length; j++)
+                    {
+                        bool on = j == idx;
+                        themeItems[j].Selected = on;
+                        themeItems[j].Glyph = on ? '' : '\0';
+                        themeItems[j].Invalidate();
+                    }
+                };
+                content.Controls.Add(item);
+                themeItems[i] = item;
+            }
+
+            uninstallButton = new PillButton("Uninstall Desk Widgets", ButtonStyle.Destructive);
+            uninstallButton.Click += delegate { App.Current.UninstallApp(); };
+            content.Controls.Add(uninstallButton);
+        }
+
+        int LayoutSettings(int pad, int width, int y)
+        {
+            int rowW = Math.Min(width, Px(500));
+
+            startupToggle.SetBounds(pad, y, rowW, Px(44));
+            y += Px(44) + Px(24);
+
+            settingsAppearanceLabel.Location = new Point(pad, y);
+            y += settingsAppearanceLabel.Height + Px(8);
+            for (int i = 0; i < themeItems.Length; i++)
+            {
+                themeItems[i].SetBounds(pad, y, rowW, Px(38));
+                y += Px(38);
+            }
+            y += Px(24);
+
+            uninstallButton.Location = new Point(pad, y);
+            y += uninstallButton.Height + Px(16);
+
+            return y;
         }
 
         // ---- Explore ----
@@ -412,7 +490,7 @@ namespace DeskWidgets
             content.ResumeLayout();
             BuildNav();
             foreach (var c in exploreCards) c.RefreshState();
-            ShowPage(page == InstalledPage || page == ExplorePage || sections.Exists(s => s.Category.Id == page) ? page : null);
+            ShowPage(page == InstalledPage || page == ExplorePage || page == SettingsPage || sections.Exists(s => s.Category.Id == page) ? page : null);
         }
 
         // Windows switched light/dark: recolor everything.
@@ -422,10 +500,11 @@ namespace DeskWidgets
             sidebar.BackColor = Theme.SidebarBg;
             Theme.ApplyToWindow(Handle);
             Theme.ApplyToScrollbars(content.Handle);
+            settingsAppearanceLabel.ForeColor = Theme.Label2;
             BuildNav();
             ShowPage(page);
             foreach (Control c in content.Controls) c.Invalidate();
-            startup.Invalidate();
+            settings.Invalidate();
             account.Invalidate();
         }
 
@@ -446,12 +525,49 @@ namespace DeskWidgets
     }
 
     // Base for the library's painted parts: double-buffered, cleared to the parent's color.
+    // Subclasses that want smooth hover transitions call AnimateHover(true/false) from their mouse
+    // handlers and read HoverBlend (0..1) in Draw. A single shared timer drives all active fades.
     abstract class PaintedControl : Control
     {
+        static readonly Timer hoverAnim = new Timer { Interval = 12 };
+        static readonly List<PaintedControl> hoverQueue = new List<PaintedControl>();
+        protected float HoverBlend;
+        bool hoverTarget;
+
+        static PaintedControl()
+        {
+            hoverAnim.Tick += delegate
+            {
+                for (int i = hoverQueue.Count - 1; i >= 0; i--)
+                {
+                    var c = hoverQueue[i];
+                    float to = c.hoverTarget ? 1f : 0f;
+                    float diff = to - c.HoverBlend;
+                    if (Math.Abs(diff) < 0.02f)
+                    {
+                        c.HoverBlend = to;
+                        hoverQueue.RemoveAt(i);
+                    }
+                    else
+                        c.HoverBlend += diff * 0.22f;
+                    c.Invalidate();
+                    foreach (Control child in c.Controls) child.Invalidate();
+                }
+                if (hoverQueue.Count == 0) hoverAnim.Stop();
+            };
+        }
+
         protected PaintedControl()
         {
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint |
                      ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+        }
+
+        protected void AnimateHover(bool on)
+        {
+            hoverTarget = on;
+            if (!hoverQueue.Contains(this)) hoverQueue.Add(this);
+            hoverAnim.Start();
         }
 
         protected static int Px(float v) { return WidgetWindow.Px(v); }
@@ -464,6 +580,12 @@ namespace DeskWidgets
         }
 
         protected abstract void Draw(Graphics g);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) hoverQueue.Remove(this);
+            base.Dispose(disposing);
+        }
     }
 
     // Large Title (34/700) over one line of secondary text.
@@ -542,10 +664,9 @@ namespace DeskWidgets
     // As a toggle it shows a switch on the right instead.
     sealed class SidebarItem : PaintedControl
     {
-        public readonly char Glyph;
+        public char Glyph;
         public bool Selected, Toggle, On;
         public Bitmap Photo; // drawn round in place of the glyph (the account row); not owned
-        bool hover;
 
         public SidebarItem(char glyph, string text)
         {
@@ -558,7 +679,11 @@ namespace DeskWidgets
         {
             var r = new RectangleF(0, 0, Width - 1, Height - 1);
             if (Selected) Theme.FillRound(g, Theme.Selection, r, Px(Theme.RadiusSmall));
-            else if (hover) Theme.FillRound(g, Color.FromArgb(Theme.Selection.A / 2, Theme.Selection), r, Px(Theme.RadiusSmall));
+            else if (HoverBlend > 0f)
+            {
+                Color sel = Theme.Selection;
+                Theme.FillRound(g, Color.FromArgb((int)(sel.A / 2 * HoverBlend), sel), r, Px(Theme.RadiusSmall));
+            }
 
             var flags = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding;
             if (Photo != null)
@@ -588,8 +713,8 @@ namespace DeskWidgets
             }
         }
 
-        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
-        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnMouseEnter(EventArgs e) { AnimateHover(true); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { AnimateHover(false); base.OnMouseLeave(e); }
     }
 
     // One row of a grouped inset list on the Installed page: a widget that was turned off (Try Again)
@@ -659,14 +784,13 @@ namespace DeskWidgets
         }
     }
 
-    // A community widget in Explore: its preview, name, author and category, and a Get button
-    // (Update when a newer version than yours is out, Add when you have it).
+    // A community widget in Explore: its preview, name, author and category. Get installs it,
+    // Update installs a newer version, and Uninstall removes it.
     sealed class ExploreCard : PaintedControl
     {
         readonly Community.Listing listing;
         readonly Bitmap preview; // may be null
         readonly PillButton button;
-        bool hover;
 
         public ExploreCard(Community.Listing listing, Bitmap preview)
         {
@@ -684,15 +808,18 @@ namespace DeskWidgets
         public void RefreshState()
         {
             PluginInfo p = Installed;
-            button.Text = p == null ? "Get" : p.Version < listing.Version ? "Update" : "Add";
+            bool installed = p != null && p.Version >= listing.Version;
+            button.Text = p == null ? "Get" : p.Version < listing.Version ? "Update" : "Uninstall";
+            button.Style = installed ? ButtonStyle.Destructive : ButtonStyle.Tinted;
+            PerformLayout();
             button.Invalidate();
-            Invalidate(); // the Installed line
+            Invalidate();
         }
 
         void Act()
         {
             PluginInfo p = Installed;
-            if (p != null && p.Version >= listing.Version && p.Type != null) App.Current.AddWidget(p.Type, null);
+            if (p != null && p.Version >= listing.Version) App.ConfirmUninstall(p);
             else Community.Install(listing.Id, listing.Version);
         }
 
@@ -704,7 +831,7 @@ namespace DeskWidgets
             catch (FormatException) { return null; }
         }
 
-        public override Color BackColor { get { return hover ? Theme.CardHover : Theme.Card; } set { } }
+        public override Color BackColor { get { return HoverBlend > 0f ? Theme.Blend(Theme.Card, Theme.CardHover, HoverBlend) : Theme.Card; } set { } }
 
         protected override void OnLayout(LayoutEventArgs e)
         {
@@ -754,11 +881,11 @@ namespace DeskWidgets
             }
         }
 
-        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); button.Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseEnter(EventArgs e) { AnimateHover(true); base.OnMouseEnter(e); }
         protected override void OnMouseLeave(EventArgs e)
         {
             if (ClientRectangle.Contains(PointToClient(Cursor.Position))) return; // moved onto the button
-            hover = false; Invalidate(); button.Invalidate(); base.OnMouseLeave(e);
+            AnimateHover(false); base.OnMouseLeave(e);
         }
 
         protected override void OnMouseUp(MouseEventArgs e)
@@ -766,12 +893,20 @@ namespace DeskWidgets
             base.OnMouseUp(e);
             if (e.Button != MouseButtons.Right) return;
             var menu = new PopupMenu();
-            menu.Add(button.Text == "Add" ? "Add to Desktop" : button.Text, Act);
+            PluginInfo p = Installed;
+            bool installed = p != null && p.Version >= listing.Version;
+            if (!installed)
+                menu.Add(p != null ? "Update" : "Get", Act);
             menu.Add("Open on the Website ↗", delegate
             {
                 try { System.Diagnostics.Process.Start(Community.Website + "widget.html?id=" + listing.Id); }
                 catch (Exception) { }
             });
+            if (installed)
+            {
+                menu.AddSeparator();
+                menu.AddDestructive("Uninstall…", Act);
+            }
             menu.Show(Cursor.Position);
         }
 
@@ -788,7 +923,7 @@ namespace DeskWidgets
     {
         readonly WidgetType type;
         readonly Bitmap preview;   // rendered at the real widget size, reused for the drag ghost
-        bool hover, dragging;
+        bool dragging;
         Point downAt;
         DragGhost ghost;
 
@@ -808,7 +943,8 @@ namespace DeskWidgets
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
             int pad = Px(12);
-            Theme.FillRound(g, hover ? Theme.CardHover : Theme.Card, new RectangleF(0, 0, Width - 1, Height - 1), Px(Theme.RadiusCard));
+            Color bg = HoverBlend > 0f ? Theme.Blend(Theme.Card, Theme.CardHover, HoverBlend) : Theme.Card;
+            Theme.FillRound(g, bg, new RectangleF(0, 0, Width - 1, Height - 1), Px(Theme.RadiusCard));
 
             int boxW = Width - pad * 2, box = Px(176) - pad * 2;
             float scale = Math.Min(1f, Math.Min(boxW / (float)preview.Width, box / (float)preview.Height));
@@ -817,7 +953,6 @@ namespace DeskWidgets
 
             int textTop = pad + box + Px(8), lineW = Width - pad * 2;
             var flags = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding;
-            Color bg = hover ? Theme.CardHover : Theme.Card;
             TextRenderer.DrawText(g, type.Name, Theme.BodyEmphasized, new Rectangle(pad, textTop, lineW, Px(20)), Theme.Label, bg, flags);
             TextRenderer.DrawText(g, type.Description, Theme.Footnote, new Rectangle(pad, textTop + Px(21), lineW, Px(18)), Theme.Label2, bg, flags);
             int count = App.Current.CountOf(type.Id);
@@ -826,8 +961,8 @@ namespace DeskWidgets
                     Theme.Label2, bg, flags);
         }
 
-        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
-        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnMouseEnter(EventArgs e) { AnimateHover(true); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { AnimateHover(false); base.OnMouseLeave(e); }
 
         protected override void OnMouseDown(MouseEventArgs e)
         {
