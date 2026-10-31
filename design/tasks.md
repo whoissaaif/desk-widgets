@@ -89,8 +89,12 @@ Blocker found: the repo is private, and on a free GitHub account Pages only serv
       Gallery…" on installed-from-file widgets, Explore marks installed widgets
 - [x] **Claude:** landing page (`index.html`; the gallery moved to `explore.html`), README,
       templates, CI, CONTRIBUTING, SECURITY; schema tests 68/68
-- [ ] **Deploy:** run `server/schema.sql`, redeploy `invite`, deploy `login` with Verify JWT off
-- [ ] **Release:** v1.1.0 with the new exe (the app's sign-in needs it)
+- [x] **Deploy:** `server/schema.sql` run live; `invite` redeployed and `login` deployed (Verify JWT
+      off), both byte-identical to the repo; repo homepage, topics, ruleset on `main` (PRs with both
+      CI checks), private vulnerability reporting
+- [x] **Release:** v1.1.0 (SHA-256 `ce65793f...`); the site's Download serves it
+- [ ] **You:** merge PR #5 (puts the new website live), then try the signed-in flows below
+- [ ] **You:** set your password: `login.html` › Forgot your password (your account predates passwords)
 
 ## Done (for reference)
 
