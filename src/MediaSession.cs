@@ -9,7 +9,7 @@ namespace DeskWidgets
     // Wraps the Windows media session (the one behind the volume flyout's media controls): whatever
     // is playing in Spotify, a browser, Media Player... Windows pushes changes to us as events, so
     // nothing is polled. All calls block, so use this from a background thread.
-    sealed class MediaSession : IDisposable
+    public sealed class MediaSession : IDisposable
     {
         public sealed class Snapshot
         {

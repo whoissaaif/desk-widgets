@@ -13,7 +13,7 @@ namespace DeskWidgets.Widgets
     // Ergast successor; free, no account). Track outlines, results and timing come from OpenF1: free
     // once a session has been over for 30 minutes, live only with a paid OpenF1 account.
     // Everything that touches the network runs on a background thread.
-    static class F1
+    public static class F1
     {
         const string Jolpica = "https://api.jolpi.ca/ergast/f1/";
         const string OpenF1 = "https://api.openf1.org/v1/";

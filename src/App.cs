@@ -117,6 +117,7 @@ namespace DeskWidgets
             config = Config.Load(configPath);
             Plugins.LoadAll();
             OpenAll();
+            NotifyOrphanedWidgets();
 
             tray = new NotifyIcon { Icon = LoadIcon(SystemInformation.SmallIconSize), Text = AppName, Visible = true };
             tray.MouseClick += delegate(object s, MouseEventArgs e)
@@ -247,6 +248,28 @@ namespace DeskWidgets
         void OpenAll()
         {
             foreach (var section in config.Sections.ToArray()) Open(section);
+        }
+
+        void NotifyOrphanedWidgets()
+        {
+            var orphaned = config.Sections.Where(s => WidgetRegistry.IsOrphaned(s.Type)).ToList();
+            if (orphaned.Count == 0) return;
+            var names = orphaned.Select(s => s.Type).Distinct()
+                .Select(t => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(t.Replace('-', ' ')))
+                .ToList();
+            string list = string.Join(", ", names);
+            Ui.Later(delegate
+            {
+                AlertDialog.Show("Some widgets moved to Explore",
+                    list + (names.Count == 1 ? " is" : " are") + " now available from the Explore page. " +
+                    "Open Explore to download " + (names.Count == 1 ? "it" : "them") + " — your settings will be kept.");
+            });
+        }
+
+        public void MigrateSections(string oldType, string newType)
+        {
+            foreach (var s in config.Sections.Where(s => s.Type == oldType).ToList())
+                s.Values["type"] = newType;
         }
 
         // Sections of a type that isn't registered (plugin removed or turned off) are kept but not shown.

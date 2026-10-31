@@ -19,8 +19,7 @@ namespace DeskWidgets
             return Encoding.UTF8.GetString(GetBytes(url));
         }
 
-        // With an OAuth bearer token (null for none).
-        internal static string Get(string url, string bearer)
+        public static string Get(string url, string bearer)
         {
             return Encoding.UTF8.GetString(Send(Request(url, bearer)));
         }
@@ -38,8 +37,7 @@ namespace DeskWidgets
             return Send(req);
         }
 
-        // POSTs an application/x-www-form-urlencoded body.
-        internal static string PostForm(string url, string body)
+        public static string PostForm(string url, string body)
         {
             var req = Request(url, null);
             req.Method = "POST";

@@ -14,11 +14,12 @@ using System.Web.Script.Serialization;
 namespace DeskWidgets.Widgets
 {
     // F1's own live timing feed, the one F1's website and app use, read without an F1 TV login.
+    // Public so community widgets (F1TimingWidget) can use it.
     // It's SignalR Core (JSON hub protocol) over a WebSocket: negotiate, connect, subscribe to the
     // topics, then merge each partial update into the topic's state. Unofficial and undocumented:
     // without a login F1 may send only part of the data, and it can change or stop at any time,
     // so the timing widget falls back to OpenF1 results when this yields nothing.
-    sealed class F1LiveFeed : IDisposable
+    public sealed class F1LiveFeed : IDisposable
     {
         const string Endpoint = "livetiming.formula1.com/signalrcore";
         const char RecordSeparator = '\u001e';
