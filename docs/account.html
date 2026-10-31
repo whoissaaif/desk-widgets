@@ -17,8 +17,17 @@
     const page = document.getElementById("page");
     const PHOTO = 192, MIN_PASSWORD = 8;
 
-    // A picked image, center-cropped to a 192 px square JPEG, as base64 (about 10 to 20 KB).
+    // A picked image, center-cropped to a 192 px square, as base64 (about 10 to 20 KB).
+    // GIFs are kept as-is (to preserve animation) when they fit; otherwise rasterised to JPEG.
     async function photoFrom(file) {
+      if (file.type === "image/gif") {
+        var buf = await file.arrayBuffer();
+        var bytes = new Uint8Array(buf);
+        var binary = "";
+        for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        var b64 = btoa(binary);
+        if (b64.length <= 60000) return b64;
+      }
       const bitmap = await createImageBitmap(file);
       const side = Math.min(bitmap.width, bitmap.height);
       const canvas = Object.assign(document.createElement("canvas"), { width: PHOTO, height: PHOTO });
@@ -72,7 +81,7 @@
       file.addEventListener("change", async () => {
         if (!file.files[0]) return;
         try { photo = await photoFrom(file.files[0]); removePhoto.hidden = false; showPhoto(); result.replaceChildren(); }
-        catch { result.replaceChildren(notice("That image couldn't be read. Try a PNG or JPEG.", true)); }
+        catch { result.replaceChildren(notice("That image couldn't be read. Try a PNG, JPEG or GIF under 45 KB.", true)); }
       });
 
       const button = el("button", { class: "button", type: "submit" }, fresh ? "Create Account" : "Save Changes");

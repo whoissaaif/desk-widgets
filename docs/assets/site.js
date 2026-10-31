@@ -155,8 +155,10 @@ async function accountNav(host, current) {
 // A round profile photo, or the first letter of the name on grey.
 export function avatar(profile, size) {
   const style = "width:" + size + "px;height:" + size + "px";
-  if (profile && isPhoto(profile.avatar))
-    return el("img", { class: "avatar", style, src: "data:image/jpeg;base64," + profile.avatar, alt: "" });
+  if (profile && isPhoto(profile.avatar)) {
+    const mime = profile.avatar.slice(0, 6) === "R0lGOD" ? "image/gif" : "image/jpeg";
+    return el("img", { class: "avatar", style, src: "data:" + mime + ";base64," + profile.avatar, alt: "" });
+  }
   const letter = profile && profile.username ? profile.username[0].toUpperCase() : "";
   return el("span", { class: "avatar", style: style + ";font-size:" + Math.round(size * 0.45) + "px", "aria-hidden": "true" }, letter);
 }
