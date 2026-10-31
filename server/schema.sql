@@ -25,7 +25,7 @@ create table if not exists public.profiles (
 
 -- Added after the first release, so they're columns of their own (create table above is a no-op then).
 alter table public.profiles add column if not exists bio text not null default '';
-alter table public.profiles add column if not exists avatar text;  -- base64 JPEG, about 192 px square
+alter table public.profiles add column if not exists avatar text;  -- base64 JPEG or GIF, about 192 px square
 alter table public.profiles drop constraint if exists profiles_bio_check;
 alter table public.profiles add constraint profiles_bio_check check (length(bio) <= 160);
 alter table public.profiles drop constraint if exists profiles_avatar_check;
