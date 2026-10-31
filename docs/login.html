@@ -52,29 +52,57 @@
         el("div", {}, button),
         result);
 
-      // Forgot password: a one-time link to the email on the account, which opens account.html
-      // signed in, where a new password can be set. Sign-ups are off, so unknown addresses get nothing.
-      const email = el("input", { class: "input", type: "email", id: "reset-email", autocomplete: "email", required: true });
-      const resetResult = el("div");
-      const reset = el("form", { class: "form", hidden: true, onsubmit: async e => {
-          e.preventDefault();
-          const db = await supabase();
-          await db.auth.signInWithOtp({ email: email.value.trim(),
-            options: { shouldCreateUser: false, emailRedirectTo: new URL("account.html", location.href).href } });
-          // The same answer whether or not the address has an account.
-          resetResult.replaceChildren(notice("If that address has an account, a link to set a new password is on its way."));
-        } },
-        el("div", { class: "field" }, el("label", { for: "reset-email" }, "Email"), email,
-          el("span", { class: "hint" }, "The address your invite was sent to.")),
-        el("div", {}, el("button", { class: "button grey", type: "submit" }, "Email Me a Link")),
-        resetResult);
+      // Two different emails, two different pages (Supabase sends each with its own template):
+      // "Email me a sign-in link" signs in without a password and comes back to `next`;
+      // "Forgot your password" sends a "Change your password" email that opens password.html.
+      // Sign-ups are off, so unknown addresses get nothing, and the answer is the same either way.
+      function emailForm(id, label, hint, buttonText, send, sent) {
+        const email = el("input", { class: "input", type: "email", id, autocomplete: "email", required: true });
+        const answer = el("div");
+        const submit = el("button", { class: "button grey", type: "submit" }, buttonText);
+        const form = el("form", { class: "form", hidden: true, onsubmit: async e => {
+            e.preventDefault();
+            submit.disabled = true;
+            const db = await supabase();
+            const { error } = await send(db, email.value.trim());
+            submit.disabled = false;
+            // Too many emails in a short time is the one failure worth showing; the rest look like success.
+            answer.replaceChildren(error && /rate limit|too many/i.test(error.message)
+              ? notice("Too many emails were sent just now. Wait a few minutes, then try again.", true)
+              : notice(sent));
+          } },
+          el("h2", { class: "t-headline" }, label),
+          el("div", { class: "field" }, el("label", { for: id }, "Email"), email, el("span", { class: "hint" }, hint)),
+          el("div", {}, submit),
+          answer);
+        form.open = () => { form.hidden = false; email.focus(); };
+        return form;
+      }
+      const here = new URL(next, location.href).href;
+      const linkForm = emailForm("link-email", "Sign in with an email link.", "The address your invite was sent to.",
+        "Email Me a Sign-In Link",
+        (db, address) => db.auth.signInWithOtp({ email: address, options: { shouldCreateUser: false, emailRedirectTo: here } }),
+        "If that address has an account, a sign-in link is on its way. It works once, for an hour.");
+      const forgotForm = emailForm("reset-email", "Change your password.", "The address your invite was sent to.",
+        "Email Me a Password Link",
+        (db, address) => db.auth.resetPasswordForEmail(address, { redirectTo: new URL("password.html", location.href).href }),
+        "If that address has an account, an email to change your password is on its way. It works once, for an hour.");
+      const show = form => e => {
+        e.preventDefault();
+        (form === linkForm ? forgotForm : linkForm).hidden = true;
+        form.open();
+      };
 
       page.replaceChildren(form,
         el("p", { class: "t-reduced", style: "margin-top: 32px" },
-          el("a", { href: "#", class: "more", onclick: e => { e.preventDefault(); reset.hidden = false; email.focus(); } }, "Forgot your password"),
+          el("a", { href: "#forgot", class: "more", onclick: show(forgotForm) }, "Forgot your password"),
+          el("br"),
+          el("a", { href: "#link", class: "more", onclick: show(linkForm) }, "Sign in with an email link instead"),
           el("br"),
           "No account? Uploading is by invitation. ", el("a", { class: "more", href: "upload.html#request" }, "Request access")),
-        reset);
+        forgotForm, linkForm);
+      if (location.hash === "#forgot") { forgotForm.open(); return; }
+      if (location.hash === "#link") { linkForm.open(); return; }
       username.focus();
     }
     main().catch(() => page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true)));

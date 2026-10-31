@@ -54,6 +54,18 @@ which is why the website and the app can ship the public anon key.
    `src/Community.cs` (app). Use the **publishable** key (`sb_publishable_...`) or, on older
    projects, the **anon** key (`eyJ...`); both are public by design and both work. Never the
    secret / service_role key.
+8. **Authentication > Emails > Templates:** paste the three templates from `email/`, each with the
+   subject written at its top, so each email says what it's for:
+
+   | Template | File | Button opens |
+   |---|---|---|
+   | Invite user | `email/invite.html` | `account.html`: choose a username and password |
+   | Magic link | `email/sign-in-link.html` | the page the person asked to sign in to |
+   | Reset password | `email/change-password.html` | `password.html`: choose a new password |
+
+   "Forgot your password" on `login.html` sends the Reset password email; "Sign in with an email
+   link instead" sends the Magic link email. A password link that lands on any other page (the
+   dashboard's own "Send password recovery" goes to the Site URL) is moved to `password.html`.
 
 The website is served by GitHub Pages from `docs/` on `main`. On a free GitHub account Pages only
 serves public repositories, so the repo has to be public (or on GitHub Pro) before the site works,
