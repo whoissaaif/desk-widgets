@@ -26,7 +26,7 @@
         var binary = "";
         for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
         var b64 = btoa(binary);
-        if (b64.length <= 60000) return b64;
+        if (b64.length <= 200000) return b64;
       }
       const bitmap = await createImageBitmap(file);
       const side = Math.min(bitmap.width, bitmap.height);
@@ -81,7 +81,7 @@
       file.addEventListener("change", async () => {
         if (!file.files[0]) return;
         try { photo = await photoFrom(file.files[0]); removePhoto.hidden = false; showPhoto(); result.replaceChildren(); }
-        catch { result.replaceChildren(notice("That image couldn't be read. Try a PNG, JPEG or GIF under 45 KB.", true)); }
+        catch { result.replaceChildren(notice("That image couldn't be read. Try a PNG, JPEG or GIF under 150 KB.", true)); }
       });
 
       const button = el("button", { class: "button", type: "submit" }, fresh ? "Create Account" : "Save Changes");
