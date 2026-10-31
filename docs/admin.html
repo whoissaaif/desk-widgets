@@ -15,7 +15,7 @@
   </main>
 
   <script type="module">
-    import { nav, el, art, notice, supabase, categoryName, formatDate, sha256Hex, isValidId, hiddenCharacters, visibleSource, toast } from "./assets/site.js";
+    import { nav, el, art, notice, supabase, categoryName, formatDate, sha256Hex, isValidId, hiddenCharacters, visibleSource, toast, confirmDialog } from "./assets/site.js";
     import { requireAccount, callFunction } from "./assets/account.js";
 
     nav("admin");
@@ -119,6 +119,38 @@
           state, reject, accept);
       });
 
+      // ---- all widgets: every widget on the platform, with delete ----
+      const { data: allWidgets } = await db.from("widgets").select("id, slug, owner, created_at").order("id");
+      const { data: allVersions } = await db.from("versions").select("widget_id, version, name, status");
+      const { data: allProfiles } = await db.from("profiles").select("id, username");
+      const profileMap = Object.fromEntries((allProfiles || []).map(p => [p.id, p.username]));
+      const versionsByWidget = {};
+      for (const v of allVersions || []) {
+        (versionsByWidget[v.widget_id] ||= []).push(v);
+      }
+
+      const widgetRows = (allWidgets || []).map(w => {
+        const vs = versionsByWidget[w.id] || [];
+        const latest = vs.length ? vs.reduce((a, b) => b.version > a.version ? b : a, vs[0]) : null;
+        const approved = vs.some(v => v.status === "approved");
+        const author = profileMap[w.owner] || "unknown";
+        const row = el("div", { class: "row" });
+        const deleteBtn = el("button", { class: "button destructive small", type: "button", onclick: () => {
+          confirmDialog("Delete this widget?", w.id + " and all its versions will be permanently removed. This can't be undone.", "Delete Widget", async () => {
+            const { error } = await db.rpc("delete_widget", { p_widget: w.id });
+            if (error) { toast(error.message); return; }
+            row.remove();
+            toast("Deleted " + w.id + ".");
+          });
+        } }, "Delete");
+        row.replaceChildren(
+          el("div", { class: "main" }, el("div", { class: "t-headline" }, latest ? latest.name : w.slug),
+            el("div", { class: "t-reduced" }, w.id + " · by " + author + " · " + vs.length + " version" + (vs.length !== 1 ? "s" : ""))),
+          el("span", { class: "status " + (approved ? "approved" : "pending") }, approved ? "approved" : "pending"),
+          deleteBtn);
+        return row;
+      });
+
       // ---- invite someone directly ----
       const email = el("input", { class: "input", id: "invite-email", type: "email", required: true });
       const inviteResult = el("div");
@@ -138,6 +170,8 @@
         el("p", { class: "t-reduced" }, "Signed in as " + who.profile.username + ", the owner."),
         el("h2", { class: "block" }, "Waiting for Review"),
         queue.length ? el("div", {}, queue) : el("p", { class: "t-reduced" }, "Nothing is waiting."),
+        el("h2", { class: "block", id: "widgets" }, "All Widgets"),
+        widgetRows.length ? el("div", { class: "group" }, widgetRows) : el("p", { class: "t-reduced" }, "No widgets on the platform yet."),
         el("h2", { class: "block", id: "requests" }, "Access Requests"),
         requestRows.length ? el("div", { class: "group" }, requestRows) : el("p", { class: "t-reduced" }, "No one is waiting for access."),
         el("h2", { class: "block" }, "Invite Someone"),

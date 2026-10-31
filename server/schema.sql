@@ -285,10 +285,25 @@ revoke all on function public.request_access(text), public.reject_request(bigint
 grant execute on function public.request_access(text) to anon, authenticated;
 grant execute on function public.reject_request(bigint) to authenticated;
 
+-- ---------------------------------------------------------------- widget deletion (admin or owner)
+
+create or replace function public.delete_widget(p_widget text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not (public.is_admin() or public.owns_widget(p_widget)) then
+    raise exception 'not allowed';
+  end if;
+  delete from public.widgets where id = p_widget;
+  if not found then raise exception 'widget % does not exist', p_widget; end if;
+end;
+$$;
+
 revoke all on function public.approve(text, int, text), public.reject(text, int),
+                       public.delete_widget(text),
                        public.is_admin(), public.my_username(), public.owns_widget(text), public.has_approved(text),
                        public.next_version(), public.source_is_plain(text) from public, anon, authenticated;
-grant execute on function public.approve(text, int, text), public.reject(text, int) to authenticated;
+grant execute on function public.approve(text, int, text), public.reject(text, int),
+  public.delete_widget(text) to authenticated;
 -- Policies run as the caller, so the roles that read need these helpers.
 grant execute on function public.is_admin(), public.my_username(), public.owns_widget(text), public.has_approved(text),
   public.source_is_plain(text)

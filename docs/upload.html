@@ -14,7 +14,7 @@
   </main>
 
   <script type="module">
-    import { nav, el, notice, supabase, configured, me, CATEGORIES, formatDate, hiddenCharacters, toast } from "./assets/site.js";
+    import { nav, el, notice, supabase, configured, me, CATEGORIES, formatDate, hiddenCharacters, toast, confirmDialog } from "./assets/site.js";
     import { requestAccessForm } from "./assets/account.js";
 
     nav("upload");
@@ -120,19 +120,41 @@
         el("div", {}, el("button", { class: "button", type: "submit" }, "Send for Review")),
         result);
 
-      // ---- your uploads ----
-      const list = (versions || []).length
-        ? el("div", { class: "group" }, versions.map(v => el("div", { class: "row" },
-            el("div", { class: "main" }, el("div", { class: "t-headline" }, v.name + " · Version " + v.version),
-              el("div", { class: "t-reduced" }, v.widget_id + " · sent " + formatDate(v.created_at))),
-            el("span", { class: "status " + v.status }, v.status))))
-        : el("p", { class: "t-reduced" }, "Nothing sent yet.");
+      // ---- your uploads: grouped by widget, with delete per widget ----
+      const byWidget = {};
+      for (const v of versions || []) { (byWidget[v.widget_id] ||= []).push(v); }
+
+      const widgetSections = (mine || []).map(w => {
+        const vs = byWidget[w.id] || [];
+        const container = el("div", { style: "margin-bottom: 32px" });
+        const deleteBtn = el("button", { class: "button destructive small", type: "button", onclick: () => {
+          confirmDialog("Delete this widget?", w.id + " and all its versions will be permanently removed. This can't be undone.", "Delete Widget", async () => {
+            const { error } = await db.rpc("delete_widget", { p_widget: w.id });
+            if (error) { toast(error.message); return; }
+            container.remove();
+            toast("Deleted " + w.id + ".", true);
+            location.reload();
+          });
+        } }, "Delete Widget");
+        const rows = vs.length
+          ? el("div", { class: "group" }, vs.map(v => el("div", { class: "row" },
+              el("div", { class: "main" }, el("div", { class: "t-headline" }, v.name + " · Version " + v.version),
+                el("div", { class: "t-reduced" }, "sent " + formatDate(v.created_at))),
+              el("span", { class: "status " + v.status }, v.status))))
+          : el("p", { class: "t-reduced" }, "No versions sent yet.");
+        container.replaceChildren(
+          el("div", { style: "display: flex; align-items: center; gap: 12px; margin-bottom: 12px" },
+            el("div", { style: "flex: 1" }, el("div", { class: "t-headline" }, w.id)),
+            deleteBtn),
+          rows);
+        return container;
+      });
 
       page.replaceChildren(
         el("p", { class: "t-reduced" }, "Signed in as " + username + "."),
         form,
         el("h2", { class: "block", id: "uploads" }, "Your Uploads"),
-        list);
+        widgetSections.length ? el("div", {}, widgetSections) : el("p", { class: "t-reduced" }, "Nothing sent yet."));
     }
     main().catch(() => page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true)));
   </script>
