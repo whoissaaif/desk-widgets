@@ -30,10 +30,7 @@ changes share files, so they're one commit rather than seven; each commit builds
 - [x] **Claude:** scan the whole git history for secrets: all 10 commits on every branch, added
       and removed lines and messages, 11 token patterns (checked against fake tokens). No secrets,
       no `widgets.ini` ever committed, no deleted files.
-- [ ] **You decide:** your personal Gmail address is the author of the very first commit
-      (`04749ba`); every later commit uses the GitHub no-reply address. It becomes public with the
-      repo. Removing it means rewriting history and force-pushing `main` (every commit id
-      changes). Alternative: leave it.
+- [x] **You decided:** keep the first commit's author email as it is.
 - [x] **Claude:** hidden-character check as a repo check: `tools/check-hidden.ps1` runs in
       `build.bat` and in the pre-commit hook (`.githooks/pre-commit`; each clone turns it on with
       `git config core.hooksPath .githooks`, already on here)
@@ -42,14 +39,27 @@ changes share files, so they're one commit rather than seven; each commit builds
 
 Steps are in `server/README.md`.
 
-- [ ] **You:** create the Supabase project (free tier)
-- [ ] **You:** run `server/schema.sql` in the SQL editor
-- [ ] **You:** Authentication: turn off sign-ups; set Site URL and redirect URLs to
-      `https://whoissaaif.github.io/desk-widgets`
-- [ ] **You:** deploy the `invite` Edge Function and set `SITE_URL` (Supabase CLI)
-- [ ] **You:** invite yourself and run the two SQL lines that make you the owner
-- [ ] **You:** send Claude the project URL and the **anon** key (never the service key)
-- [ ] **Claude:** put them in `docs/config.js` and `src/Community.cs`, rebuild
+Blocker found: the repo is private, and on a free GitHub account Pages only serves public repos
+(release downloads also need a public repo). So the site can't go live until:
+
+- [ ] **You decide:** make the repo public (the plan's intent) or use GitHub Pro
+- [ ] **You:** merge `community-widgets` into `main` (Pages serves `docs/` from `main`)
+
+- [x] Supabase project `desk-widgets` (ref `vtgsbgkjleyqlxgjdvqy`, Sydney, free tier), created
+      with the database password typed by you; "expose new tables" off
+- [x] `server/schema.sql` run and checked live: RLS on all tables, 6 policies, anon read-only,
+      `approve` closed to anon, hidden-character constraint active
+- [x] Sign-ups off; Site URL and redirect URL `https://whoissaaif.github.io/desk-widgets`
+- [x] `invite` Edge Function deployed (byte-identical to the repo) with the `SITE_URL` secret
+- [ ] **You, if needed:** the function's "Verify JWT with legacy secret" is still on. If inviting
+      an uploader fails with "Invalid JWT", turn it off (Edge Functions > invite > Settings); the
+      function verifies the caller and checks `admins` itself
+- [x] Owner: `saif` (0syedsaifuddin@gmail.com), invited and made admin. **You:** accept the
+      invite email to set up the sign-in
+- [x] Project URL and publishable key in `docs/config.js` and `src/Community.cs`; the app reads
+      the live (empty) gallery
+- [ ] **Later:** the function still uses the deprecated `SUPABASE_SERVICE_ROLE_KEY`; move to
+      `SUPABASE_SECRET_KEYS` before Supabase removes legacy keys
 - [ ] **Claude** (after you confirm, since it's public): turn on GitHub Pages for `docs/`
 - [ ] **Claude** (after you confirm): publish a GitHub Release with `DeskWidgets.exe`
 - [ ] **Claude:** live test end to end: upload `samples/HelloWidget.cs` on the website, approve it

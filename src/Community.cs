@@ -14,8 +14,8 @@ namespace DeskWidgets
     static class Community
     {
         // Public by design (server/README.md). Empty until the backend is set up.
-        public const string Url = "";
-        public const string AnonKey = "";
+        public const string Url = "https://vtgsbgkjleyqlxgjdvqy.supabase.co";
+        public const string AnonKey = "sb_publishable_7-z7D1GwtQJumqAPFxlJlA_d3myO4gk";
         public const string Website = "https://whoissaaif.github.io/desk-widgets/";
 
         public static bool Configured { get { return Url.Length > 0 && AnonKey.Length > 0; } }
@@ -30,7 +30,10 @@ namespace DeskWidgets
 
         static object[] Query(string pathAndQuery)
         {
-            var headers = new Dictionary<string, string> { { "apikey", AnonKey }, { "Authorization", "Bearer " + AnonKey } };
+            // The apikey header alone reads public rows with either key type. A classic anon key is a
+            // JWT and may also go in Authorization; a newer publishable key (sb_publishable_...) must not.
+            var headers = new Dictionary<string, string> { { "apikey", AnonKey } };
+            if (AnonKey.StartsWith("eyJ")) headers["Authorization"] = "Bearer " + AnonKey;
             string json = Encoding.UTF8.GetString(Http.GetBytes(Url.TrimEnd('/') + "/rest/v1/" + pathAndQuery, headers));
             var parsed = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 }.DeserializeObject(json) as object[];
             if (parsed == null) throw new FormatException("Unexpected answer from the gallery.");
