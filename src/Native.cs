@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace DeskWidgets
 {
@@ -64,62 +65,48 @@ namespace DeskWidgets
 
         [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
-        // ---- native popup menus ----
-        public const uint MIIM_STATE = 0x1, MIIM_ID = 0x2, MIIM_SUBMENU = 0x4, MIIM_STRING = 0x40, MIIM_FTYPE = 0x100;
-        public const uint MFT_SEPARATOR = 0x800, MFT_RADIOCHECK = 0x200;
-        public const uint MFS_CHECKED = 0x8, MFS_DEFAULT = 0x1000;
-        public const uint TPM_RIGHTBUTTON = 0x2, TPM_NONOTIFY = 0x80, TPM_RETURNCMD = 0x100;
-        public const int WM_NULL = 0, WM_SETTINGCHANGE = 0x1A;
+        public const int WM_SETTINGCHANGE = 0x1A, WM_NCACTIVATE = 0x86;
+        public const int WM_COPYDATA = 0x4A;
 
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        public struct MENUITEMINFO
+        [StructLayout(LayoutKind.Sequential)]
+        public struct COPYDATASTRUCT
         {
-            public uint cbSize, fMask, fType, fState, wID;
-            public IntPtr hSubMenu, hbmpChecked, hbmpUnchecked, dwItemData;
-            public string dwTypeData;
-            public uint cch;
-            public IntPtr hbmpItem;
+            public IntPtr dwData;
+            public int cbData;
+            public IntPtr lpData;
         }
 
-        [DllImport("user32.dll")] public static extern IntPtr CreatePopupMenu();
-        [DllImport("user32.dll")] public static extern bool DestroyMenu(IntPtr hMenu);
-        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-        public static extern bool InsertMenuItem(IntPtr hMenu, uint item, bool byPosition, ref MENUITEMINFO mii);
-        [DllImport("user32.dll")]
-        public static extern int TrackPopupMenuEx(IntPtr hMenu, uint flags, int x, int y, IntPtr hwnd, IntPtr tpm);
         [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+        [DllImport("user32.dll")]
+        public static extern bool DrawIconEx(IntPtr hdc, int x, int y, IntPtr hIcon, int cx, int cy, int step, IntPtr brush, int flags);
+        [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr hWnd);
+        [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
 
-        // Undocumented-but-stable uxtheme exports (Windows 10 1903+) that make Win32 menus follow
-        // the system light/dark app theme, exactly like Explorer's menus. Silently skipped elsewhere.
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT { public int Left, Top, Right, Bottom; }
+
+        public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+        [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc proc, IntPtr lParam);
+        [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+        [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+        [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int index);
+        [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr hWnd, StringBuilder name, int max);
+        [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, int attr, out int value, int size);
+        [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, int attr, out RECT value, int size);
+        public const int GWL_EXSTYLE = -20, DWMWA_EXTENDED_FRAME_BOUNDS = 9, DWMWA_CLOAKED = 14;
+
+        // Undocumented-but-stable uxtheme export (Windows 10 1809+) needed for dark scrollbars.
         [DllImport("uxtheme.dll", EntryPoint = "#133")] static extern bool AllowDarkModeForWindow(IntPtr hwnd, bool allow);
-        [DllImport("uxtheme.dll", EntryPoint = "#135")] static extern int SetPreferredAppMode(int mode);
-        [DllImport("uxtheme.dll", EntryPoint = "#136")] static extern void FlushMenuThemes();
-
-        public static void FollowSystemThemeForMenus(IntPtr ownerHwnd)
-        {
-            try
-            {
-                SetPreferredAppMode(1); // AllowDark
-                AllowDarkModeForWindow(ownerHwnd, true);
-                FlushMenuThemes();
-            }
-            catch (EntryPointNotFoundException) { }
-        }
-
         [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)] static extern int SetWindowTheme(IntPtr hwnd, string app, string idList);
 
-        // Dark scrollbars (and other common-control parts) for a control in our always-dark windows.
-        public static void UseDarkControlTheme(IntPtr hwnd)
+        // Native scrollbars (and other common-control parts) in the light or dark Explorer style.
+        public static void UseControlTheme(IntPtr hwnd, bool dark)
         {
-            try { AllowDarkModeForWindow(hwnd, true); }
+            try { AllowDarkModeForWindow(hwnd, dark); }
             catch (EntryPointNotFoundException) { }
-            SetWindowTheme(hwnd, "DarkMode_Explorer", null);
-        }
-
-        public static void RefreshMenuTheme()
-        {
-            try { FlushMenuThemes(); }
-            catch (EntryPointNotFoundException) { }
+            SetWindowTheme(hwnd, dark ? "DarkMode_Explorer" : "Explorer", null);
         }
 
         [DllImport("gdi32.dll")] public static extern IntPtr CreateCompatibleDC(IntPtr hdc);

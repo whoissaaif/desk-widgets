@@ -8,9 +8,11 @@ namespace DeskWidgets
     // Base class for every widget: a borderless, per-pixel-alpha window that sits on the
     // desktop (below normal windows, survives Win+D, hidden from taskbar/Alt+Tab).
     // Subclasses only implement Measure(), Draw() and optionally NextFrameDelay()/BuildMenu().
-    abstract class WidgetWindow : Form
+    // Public: community widgets derive from it (API v1, see PluginApi.cs).
+    public abstract class WidgetWindow : Form
     {
-        public static float Dpi = 1f;
+        static float dpi = 1f;
+        public static float Dpi { get { return dpi; } internal set { dpi = value; } }
         public static int Px(float logical) { return (int)Math.Round(logical * Dpi); }
 
         public readonly Section Settings;
@@ -41,16 +43,17 @@ namespace DeskWidgets
             var menu = new PopupMenu();
             BuildMenu(menu);
             menu.AddSeparator();
-            menu.AddCheck("Lock position", Locked, delegate { Settings.Set("locked", !Locked); });
+            menu.AddCheck("Lock Position", Locked, delegate { Settings.Set("locked", !Locked); });
             var opacity = menu.AddSubmenu("Opacity");
             foreach (int pct in new[] { 100, 85, 70, 50 })
             {
                 int p = pct;
                 opacity.AddChoice(p + "%", OpacityPercent == p, delegate { Settings.Set("opacity", p); Render(); });
             }
-            menu.Add("Remove this widget", delegate { App.Current.RemoveWidget(this); });
             menu.AddSeparator();
-            App.Current.FillAppMenu(menu);
+            menu.Add("Open Desk Widgets", App.Current.OpenLibrary);
+            menu.AddSeparator();
+            menu.AddDestructive("Remove Widget", delegate { App.Current.RemoveWidget(this); });
             menu.Show(Cursor.Position);
         }
 
@@ -79,7 +82,7 @@ namespace DeskWidgets
             }
         }
 
-        public void SetPaused(bool value)
+        internal void SetPaused(bool value)
         {
             paused = value;
             if (paused) timer.Stop();
@@ -110,6 +113,73 @@ namespace DeskWidgets
             Render();
         }
 
+        // True when other windows hide (almost) all of this widget, so animations can stop drawing
+        // frames nobody sees. Widgets sit at the bottom of the z-order, so every visible app window
+        // is in front: subtract each one's area from ours and see what's left. Checked at most
+        // twice a second.
+        static readonly uint MyPid = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
+        int coveredCheckedAt;
+        bool coveredCached;
+
+        protected bool IsCovered()
+        {
+            int now = Environment.TickCount;
+            if (coveredCheckedAt != 0 && now - coveredCheckedAt < 500) return coveredCached;
+            coveredCheckedAt = now == 0 ? 1 : now;
+            coveredCached = ComputeCovered();
+            return coveredCached;
+        }
+
+        bool ComputeCovered()
+        {
+            var mine = new Rectangle(Location, Size);
+            if (mine.Width <= 0 || mine.Height <= 0) return false;
+            uint myPid = MyPid;
+            var className = new System.Text.StringBuilder(64);
+            using (var visible = new Region(mine))
+            {
+                Native.EnumWindows((hwnd, l) =>
+                {
+                    if (hwnd == Handle || !Native.IsWindowVisible(hwnd) || Native.IsIconic(hwnd)) return true;
+                    int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
+                    // Click-through and never-activated windows are overlays (GeForce, Narrator, OSDs),
+                    // often invisible and full-screen; real app windows are neither.
+                    if ((ex & (Native.WS_EX_TRANSPARENT | Native.WS_EX_NOACTIVATE)) != 0) return true;
+                    uint pid;
+                    Native.GetWindowThreadProcessId(hwnd, out pid);
+                    if (pid == myPid && (ex & Native.WS_EX_LAYERED) != 0) return true; // other widgets
+                    int cloaked;
+                    if (Native.DwmGetWindowAttribute(hwnd, Native.DWMWA_CLOAKED, out cloaked, 4) == 0 && cloaked != 0) return true; // other virtual desktop, suspended app
+                    className.Length = 0;
+                    Native.GetClassName(hwnd, className, className.Capacity);
+                    string cls = className.ToString();
+                    if (cls == "Progman" || cls == "WorkerW") return true; // the desktop itself
+                    Native.RECT r;
+                    if (Native.DwmGetWindowAttribute(hwnd, Native.DWMWA_EXTENDED_FRAME_BOUNDS, out r, 16) != 0 &&
+                        !Native.GetWindowRect(hwnd, out r)) return true;
+                    var rect = Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom);
+                    if (rect.IntersectsWith(mine)) visible.Exclude(rect);
+                    return true;
+                }, IntPtr.Zero);
+
+                // Covered when less than 5% of the widget is still showing.
+                long area = 0;
+                using (var m = new System.Drawing.Drawing2D.Matrix())
+                    foreach (var s in visible.GetRegionScans(m)) area += (long)(s.Width * s.Height);
+                return area < (long)mine.Width * mine.Height / 20;
+            }
+        }
+
+        // Colour of the last frame at a point (for overlays that must blend in, like the note editor).
+        protected Color RenderedColor(Point p)
+        {
+            if (surface == null || p.X < 0 || p.Y < 0 || p.X >= surface.Width || p.Y >= surface.Height) return Color.Black;
+            return Color.FromArgb(255, surface.Bitmap.GetPixel(p.X, p.Y));
+        }
+
+        // The wallpaper or display layout changed (only vibrant widgets care).
+        internal virtual void BackdropChanged() { }
+
         // Called once the widget is really on screen (not for library previews): start timers,
         // background fetches, etc. here rather than in the constructor.
         protected virtual void OnStart() { }
@@ -118,7 +188,7 @@ namespace DeskWidgets
 
         // Positions are stored as fractions (0..1) of the monitor's free space, so a widget in
         // the top-right corner stays there on any resolution, DPI or machine.
-        public void MoveTo(Point topLeft)
+        internal void MoveTo(Point topLeft)
         {
             Size sz = Measure();
             Screen screen = Screen.FromRectangle(new Rectangle(topLeft, sz));
@@ -129,7 +199,7 @@ namespace DeskWidgets
             Reposition();
         }
 
-        public void Reposition()
+        internal void Reposition()
         {
             if (IsHandleCreated) PlaceOnScreen();
         }
@@ -160,7 +230,7 @@ namespace DeskWidgets
         }
 
         // Renders the widget into a new bitmap (used for library previews and the drag ghost).
-        public Bitmap Snapshot()
+        internal Bitmap Snapshot()
         {
             Size sz = Measure();
             var bmp = new Bitmap(sz.Width, sz.Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
@@ -190,6 +260,7 @@ namespace DeskWidgets
             else if (m.Msg == Native.WM_EXITSIZEMOVE)
             {
                 MoveTo(Location);
+                Render(); // vibrant widgets show what's behind their new spot
             }
             base.WndProc(ref m);
         }

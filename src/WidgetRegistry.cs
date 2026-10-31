@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using DeskWidgets.Widgets;
@@ -15,6 +16,8 @@ namespace DeskWidgets
     {
         public string Id, Category, Name, Description;
         public Func<Section, WidgetWindow> Create;
+        // Set for community widgets: their code may crash, so the app guards every call into it.
+        public string PluginId;
         // Optional: settings for a freshly added widget (lets one widget class offer several presets).
         public Action<Section> Defaults;
 
@@ -28,43 +31,58 @@ namespace DeskWidgets
 
         public Bitmap Snapshot()
         {
-            using (var w = Create(NewSettings())) return w.Snapshot();
+            return Plugins.Guard(this, () =>
+            {
+                using (var w = Create(NewSettings())) return w.Snapshot();
+            });
         }
     }
 
     // Everything the app offers, grouped by category. Add new categories, widgets or presets here.
+    // Community widgets are added and removed at run time through Register / Unregister.
     static class WidgetRegistry
     {
         public static readonly WidgetCategory[] Categories =
         {
             new WidgetCategory { Id = "clocks", Name = "Clocks", Description = "Analog and world clocks", Glyph = '\uE917' },
-            new WidgetCategory { Id = "productivity", Name = "Productivity", Description = "Focus, reminders and notes", Glyph = '\uE73A' },
+            new WidgetCategory { Id = "productivity", Name = "Productivity", Description = "Calendar, focus, reminders and notes", Glyph = '\uE73A' },
+            new WidgetCategory { Id = "weather", Name = "Weather", Description = "Conditions and the next hours", Glyph = '\uE753' },
             new WidgetCategory { Id = "system", Name = "System", Description = "What your PC is doing", Glyph = '\uE7F4' },
-            new WidgetCategory { Id = "media", Name = "Photos", Description = "Your pictures on the desktop", Glyph = '\uEB9F' },
+            new WidgetCategory { Id = "media", Name = "Media", Description = "Your pictures and what's playing", Glyph = '\uEB9F' },
             new WidgetCategory { Id = "developer", Name = "Developer", Description = "Your GitHub at a glance", Glyph = '\uE943' },
         };
 
-        public static readonly WidgetType[] Types =
+        static readonly WidgetType[] BuiltIn =
         {
             new WidgetType
             {
-                Id = "analog-clock", Category = "clocks", Name = "Analog clock", Description = "Local time, classic dial",
+                Id = "analog-clock", Category = "clocks", Name = "Analog Clock", Description = "Local time, classic dial",
                 Create = s => new AnalogClock(s)
             },
             new WidgetType
             {
-                Id = "analog-clock-dark", Category = "clocks", Name = "Analog clock · Dark", Description = "Local time, dark dial",
+                Id = "analog-clock-dark", Category = "clocks", Name = "Analog Clock · Dark", Description = "Local time, dark dial",
                 Create = s => new AnalogClock(s), Defaults = s => s.Set("face", "dark")
             },
             new WidgetType
             {
-                Id = "world-clock", Category = "clocks", Name = "World clock", Description = "Any city, starts on Paris",
+                Id = "world-clock", Category = "clocks", Name = "World Clock", Description = "Any city, starts on Paris",
                 Create = s => new AnalogClock(s),
                 Defaults = s => { s.Set("label", "PAR"); s.Set("tz", "Romance Standard Time"); }
             },
             new WidgetType
             {
-                Id = "focus-timer", Category = "productivity", Name = "Focus timer", Description = "A ring that counts down",
+                Id = "calendar", Category = "productivity", Name = "Calendar", Description = "Today, your next events and the month",
+                Create = s => new CalendarWidget(s)
+            },
+            new WidgetType
+            {
+                Id = "weather", Category = "weather", Name = "Weather", Description = "Now, high and low, and the next hours",
+                Create = s => new WeatherWidget(s)
+            },
+            new WidgetType
+            {
+                Id = "focus-timer", Category = "productivity", Name = "Focus Timer", Description = "A ring that counts down",
                 Create = s => new FocusTimer(s)
             },
             new WidgetType
@@ -84,8 +102,13 @@ namespace DeskWidgets
             },
             new WidgetType
             {
-                Id = "photo-frame", Category = "media", Name = "Photo frame", Description = "A picture from your folder, changes hourly",
+                Id = "photo-frame", Category = "media", Name = "Photo Frame", Description = "A picture from your folder, changes hourly",
                 Create = s => new PhotoFrame(s)
+            },
+            new WidgetType
+            {
+                Id = "now-playing", Category = "media", Name = "Now Playing", Description = "What's playing, with play, pause and skip",
+                Create = s => new NowPlayingWidget(s)
             },
             new WidgetType
             {
@@ -94,14 +117,39 @@ namespace DeskWidgets
             },
         };
 
+        static readonly List<WidgetType> types = new List<WidgetType>(BuiltIn);
+
+        // Raised when community widgets are installed, removed, enabled or disabled.
+        public static event Action Changed;
+
+        public static void RaiseChanged()
+        {
+            if (Changed != null) Changed();
+        }
+
+        public static IEnumerable<WidgetType> Types { get { return types; } }
+
         public static WidgetType Find(string id)
         {
-            return Array.Find(Types, t => t.Id == id);
+            return types.Find(t => t.Id == id);
         }
 
         public static WidgetType[] InCategory(string categoryId)
         {
-            return Types.Where(t => t.Category == categoryId).ToArray();
+            return types.Where(t => t.Category == categoryId).ToArray();
+        }
+
+        // Never replaces an existing entry, built-in or not.
+        public static bool Register(WidgetType type)
+        {
+            if (Find(type.Id) != null) return false;
+            types.Add(type);
+            return true;
+        }
+
+        public static void Unregister(string id)
+        {
+            types.RemoveAll(t => t.Id == id && t.PluginId != null);
         }
     }
 }

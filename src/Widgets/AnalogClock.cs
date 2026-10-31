@@ -57,10 +57,18 @@ namespace DeskWidgets.Widgets
             HandShadow = Color.FromArgb(90, 0, 0, 0), Seconds = Rgb(0xFF9F0A)
         };
 
+        // Frosted wallpaper behind (drawn separately), translucent face, white marks and hands.
+        static readonly Theme VibrantTheme = new Theme
+        {
+            Face = Color.FromArgb(46, 255, 255, 255), Numbers = Color.White, Label = Color.FromArgb(190, 255, 255, 255),
+            TickHour = Color.FromArgb(210, 255, 255, 255), TickMinute = Color.FromArgb(90, 255, 255, 255), Hands = Color.White,
+            HandShadow = Color.FromArgb(70, 0, 0, 0), Seconds = Color.White
+        };
+
         static Color Rgb(int rgb) { return Color.FromArgb(unchecked((int)0xFF000000) | rgb); }
 
         static readonly int[] SizeOptions = { 140, 170, 220, 300 };
-        static readonly string[] SizeNames = { "Small", "Medium", "Large", "Extra large" };
+        static readonly string[] SizeNames = { "Small", "Medium", "Large", "Extra Large" };
 
         TimeZoneInfo zone;
         Bitmap dial;          // cached static layer
@@ -74,7 +82,9 @@ namespace DeskWidgets.Widgets
 
         int Diameter { get { return Px(Settings.GetInt("size", 170)); } }
         string SecondsMode { get { return Settings.Get("seconds", "tick"); } } // off | tick | smooth
-        Theme CurrentTheme { get { return Settings.Get("face", "light") == "dark" ? DarkTheme : LightTheme; } }
+        string FaceSetting { get { return Settings.Get("face", "light"); } }
+        Theme CurrentTheme { get { return FaceSetting == "vibrant" ? VibrantTheme : FaceSetting == "dark" ? DarkTheme : LightTheme; } }
+        Rectangle dialFor; // where on screen the vibrant dial's backdrop was sampled
 
         void LoadZone()
         {
@@ -111,7 +121,8 @@ namespace DeskWidgets.Widgets
         protected override void Draw(Graphics g)
         {
             int s = Diameter;
-            if (dial == null || dial.Width != s) BuildDial(s);
+            bool vibrant = CurrentTheme == VibrantTheme;
+            if (dial == null || dial.Width != s || (vibrant && IsHandleCreated && Bounds != dialFor)) BuildDial(s);
 
             g.CompositingMode = CompositingMode.SourceCopy;
             g.DrawImageUnscaled(dial, 0, 0);
@@ -173,8 +184,23 @@ namespace DeskWidgets.Widgets
                 g.Clear(Color.Transparent);
 
                 using (var bg = RoundedRect(new RectangleF(0, 0, s, s), s * 0.225f))
-                using (var bgBrush = new LinearGradientBrush(new PointF(0, 0), new PointF(0, s), th.BgTop, th.BgBottom))
-                    g.FillPath(bgBrush, bg);
+                {
+                    if (th == VibrantTheme)
+                    {
+                        dialFor = IsHandleCreated ? Bounds : Rectangle.Empty;
+                        using (var blurred = DesktopBackdrop.Blurred(new Size(s, s), dialFor))
+                        {
+                            g.SetClip(bg);
+                            g.DrawImageUnscaled(blurred, 0, 0);
+                            using (var tint = new SolidBrush(Color.FromArgb(70, 20, 24, 28))) g.FillPath(tint, bg);
+                            g.ResetClip();
+                        }
+                        using (var edge = new Pen(Color.FromArgb(60, 255, 255, 255), 1f)) g.DrawPath(edge, bg);
+                    }
+                    else
+                        using (var bgBrush = new LinearGradientBrush(new PointF(0, 0), new PointF(0, s), th.BgTop, th.BgBottom))
+                            g.FillPath(bgBrush, bg);
+                }
 
                 using (var face = new SolidBrush(th.Face))
                     g.FillEllipse(face, c - r, c - r, r * 2, r * 2);
@@ -291,16 +317,24 @@ namespace DeskWidgets.Widgets
                 size.AddChoice(SizeNames[i], curSize == px, delegate { Settings.Set("size", px); Changed(); });
             }
 
-            var seconds = menu.AddSubmenu("Seconds hand");
+            var seconds = menu.AddSubmenu("Seconds Hand");
             string curMode = SecondsMode;
             seconds.AddChoice("Ticking", curMode == "tick", delegate { Settings.Set("seconds", "tick"); Changed(); });
-            seconds.AddChoice("Smooth sweep", curMode == "smooth", delegate { Settings.Set("seconds", "smooth"); Changed(); });
+            seconds.AddChoice("Smooth Sweep", curMode == "smooth", delegate { Settings.Set("seconds", "smooth"); Changed(); });
             seconds.AddChoice("Hidden", curMode == "off", delegate { Settings.Set("seconds", "off"); Changed(); });
 
             var face = menu.AddSubmenu("Face");
-            bool dark = CurrentTheme == DarkTheme;
-            face.AddChoice("Light", !dark, delegate { Settings.Set("face", "light"); Changed(); });
-            face.AddChoice("Dark", dark, delegate { Settings.Set("face", "dark"); Changed(); });
+            string cur = FaceSetting;
+            face.AddChoice("Light", cur != "dark" && cur != "vibrant", delegate { Settings.Set("face", "light"); Changed(); });
+            face.AddChoice("Dark", cur == "dark", delegate { Settings.Set("face", "dark"); Changed(); });
+            face.AddChoice("Vibrant", cur == "vibrant", delegate { Settings.Set("face", "vibrant"); Changed(); });
+        }
+
+        internal override void BackdropChanged()
+        {
+            if (CurrentTheme != VibrantTheme) return;
+            DisposeDial();
+            Render();
         }
 
         protected override void Dispose(bool disposing)
