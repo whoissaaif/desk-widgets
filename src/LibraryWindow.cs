@@ -29,7 +29,7 @@ namespace DeskWidgets
         readonly PillButton uploadButton;
         readonly List<ExploreCard> exploreCards = new List<ExploreCard>();
         readonly List<PluginRow> updates = new List<PluginRow>();
-        bool exploreLoading, exploreLoaded;
+        bool exploreLoading;
         readonly List<Section> sections = new List<Section>();
         readonly List<WidgetCard> installedCards = new List<WidgetCard>();
         readonly List<PluginRow> turnedOff = new List<PluginRow>();
@@ -201,7 +201,7 @@ namespace DeskWidgets
             if (target == ExplorePage)
             {
                 header.Set("Explore", "Widgets made by the community. Each one is reviewed before it appears here.");
-                if (!exploreLoaded && !exploreLoading) LoadExplore();
+                if (!exploreLoading) LoadExplore(); // every visit, so newly approved widgets show up
             }
             else if (target == InstalledPage)
                 header.Set("Installed", "Widgets you installed. Drag one onto your desktop to use it.");
@@ -308,11 +308,11 @@ namespace DeskWidgets
             if (!Community.Configured)
             {
                 exploreState.Set("Explore Isn’t Connected Yet", "Community widgets appear here once the gallery is online.");
-                exploreLoaded = true;
                 return;
             }
             exploreLoading = true;
-            exploreState.Set("Loading…", "");
+            // The cards from the last visit stay up while the list reloads.
+            if (exploreCards.Count == 0) exploreState.Set("Loading…", "");
             System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
                 List<Community.Listing> list = null;
@@ -329,10 +329,15 @@ namespace DeskWidgets
                     exploreLoading = false;
                     if (IsDisposed) { foreach (var b in previews.Values) if (b != null) b.Dispose(); return; }
                     if (list == null)
-                        exploreState.Set("Explore Couldn’t Load", "Check your connection, then open Explore again.");
+                    {
+                        // Offline: keep the cards from the last visit if there are any.
+                        if (exploreCards.Count == 0)
+                            exploreState.Set("Explore Couldn’t Load", "Check your connection, then open Explore again.");
+                    }
                     else
                     {
-                        exploreLoaded = true;
+                        foreach (var old in exploreCards) { content.Controls.Remove(old); old.Dispose(); }
+                        exploreCards.Clear();
                         if (list.Count == 0) exploreState.Set("Nothing Here Yet", "Reviewed community widgets will appear here.");
                         foreach (var l in list)
                         {
