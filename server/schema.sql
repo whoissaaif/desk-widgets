@@ -192,7 +192,7 @@ create policy versions_insert on public.versions for insert to authenticated
 revoke all on public.profiles, public.admins, public.widgets, public.versions, public.access_requests from anon, authenticated;
 grant select on public.widgets, public.versions to anon, authenticated;
 grant select on public.profiles, public.admins, public.access_requests to authenticated;
-grant select on public.admins, public.access_requests to service_role;
+grant select on public.profiles, public.admins, public.access_requests to service_role;
 grant insert (id, username, bio, avatar) on public.profiles to authenticated;
 grant update (username, bio, avatar) on public.profiles to authenticated;
 grant insert (id, owner, slug) on public.widgets to authenticated;
