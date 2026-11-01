@@ -18,7 +18,7 @@
     const PHOTO = 192, MIN_PASSWORD = 8;
 
     // A picked image as base64. GIFs are kept raw (animation preserved); other formats are
-    // center-cropped to a 192 px square JPEG. GIFs over 150 KB are rejected, not converted.
+    // center-cropped to a 192 px square JPEG. GIFs over 5 MB are rejected, not converted.
     async function photoFrom(file) {
       if (file.type === "image/gif") {
         var buf = await file.arrayBuffer();
@@ -26,7 +26,7 @@
         var binary = "";
         for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
         var b64 = btoa(binary);
-        if (b64.length <= 200000) return b64;
+        if (b64.length <= 6700000) return b64;
         throw new Error("gif too large");
       }
       const bitmap = await createImageBitmap(file);
@@ -83,7 +83,7 @@
         if (!file.files[0]) return;
         try { photo = await photoFrom(file.files[0]); removePhoto.hidden = false; showPhoto(); result.replaceChildren(); }
         catch (err) { result.replaceChildren(notice(err.message === "gif too large"
-          ? "That GIF is over 150 KB. Try a smaller or shorter animation."
+          ? "That GIF is over 5 MB. Try a smaller or shorter animation."
           : "That image couldn't be read. Try a PNG, JPEG or GIF.", true)); }
       });
 
