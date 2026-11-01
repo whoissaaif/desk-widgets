@@ -21,7 +21,7 @@
     const page = document.getElementById("page");
     // Only pages on this site, never another origin.
     const raw = new URLSearchParams(location.search).get("next") || "";
-    const next = /^[a-z-]+\.html$/.test(raw) && raw !== "login.html" ? raw : "upload.html";
+    const next = "index.html";
 
     async function main() {
       if (!configured) { page.replaceChildren(notice("Accounts aren't connected yet.")); return; }
