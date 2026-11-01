@@ -6,6 +6,9 @@
   <title>Explore · Desk Widgets</title>
   <meta name="description" content="Free, lightweight desktop widgets for Windows, and widgets made by the community.">
   <link rel="stylesheet" href="assets/site.css">
+  <link rel="preconnect" href="https://vtgsbgkjleyqlxgjdvqy.supabase.co">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm">
 </head>
 <body>
   <main class="content">
@@ -121,29 +124,46 @@
       searchResults.hidden = false;
     }
 
+    let previewBatchTimer = null;
+    const pendingPreviews = new Map();
+
     const previewObserver = new IntersectionObserver((entries, obs) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
-        const el_ = entry.target, id = el_.dataset.widgetId;
-        obs.unobserve(el_);
-        const w = widgets.find(w => w.id === id);
-        if (!w) return;
-        loadPreview(el_, w);
+        const artEl = entry.target, id = artEl.dataset.widgetId;
+        obs.unobserve(artEl);
+        pendingPreviews.set(id, artEl);
       }
+      if (pendingPreviews.size && !previewBatchTimer)
+        previewBatchTimer = setTimeout(flushPreviews, 50);
     }, { rootMargin: "200px" });
 
-    async function loadPreview(artEl, w) {
+    async function flushPreviews() {
+      previewBatchTimer = null;
+      const batch = new Map(pendingPreviews);
+      pendingPreviews.clear();
+      const ids = [...batch.keys()];
       try {
         const db = await supabase();
-        const { data } = await db.from("explore").select("preview").eq("id", w.id).maybeSingle();
-        if (data && data.preview) {
-          artEl.className = "art";
-          artEl.replaceChildren(el("img", { src: "data:image/png;base64," + data.preview, alt: w.name + " preview" }));
-          return;
+        const { data } = await db.from("explore").select("id, preview").in("id", ids);
+        const map = new Map((data || []).map(r => [r.id, r.preview]));
+        for (const [id, artEl] of batch) {
+          const preview = map.get(id);
+          const w = widgets.find(w => w.id === id);
+          if (preview) {
+            artEl.className = "art";
+            artEl.replaceChildren(el("img", { src: "data:image/png;base64," + preview, alt: (w ? w.name : id) + " preview" }));
+          } else {
+            artEl.className = "art";
+            artEl.replaceChildren(el("span", { class: "none" }, "No preview"));
+          }
         }
-      } catch {}
-      artEl.className = "art";
-      artEl.replaceChildren(el("span", { class: "none" }, "No preview"));
+      } catch {
+        for (const [, artEl] of batch) {
+          artEl.className = "art";
+          artEl.replaceChildren(el("span", { class: "none" }, "No preview"));
+        }
+      }
     }
 
     function widgetCard(w) {
