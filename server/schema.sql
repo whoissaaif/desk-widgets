@@ -19,7 +19,7 @@
 
 create table if not exists public.profiles (
   id         uuid primary key references auth.users (id) on delete cascade,
-  username   text not null unique check (username ~ '^[a-z0-9-]{2,24}$'),  -- immutable: no UPDATE grant on it
+  username   text not null unique check (username ~ '^[a-z0-9-]{2,24}$'),
   created_at timestamptz not null default now()
 );
 
@@ -194,7 +194,7 @@ grant select on public.widgets, public.versions to anon, authenticated;
 grant select on public.profiles, public.admins, public.access_requests to authenticated;
 grant select on public.admins, public.access_requests to service_role;
 grant insert (id, username, bio, avatar) on public.profiles to authenticated;
-grant update (bio, avatar) on public.profiles to authenticated;
+grant update (username, bio, avatar) on public.profiles to authenticated;
 grant insert (id, owner, slug) on public.widgets to authenticated;
 grant insert (widget_id, name, category, description, api_version, source, preview) on public.versions to authenticated;
 

@@ -420,7 +420,7 @@ namespace DeskWidgets
                 try
                 {
                     list = Community.Explore();
-                    foreach (var l in list) previews[l] = Community.Preview(l); // disk cache after the first time
+                    previews = Community.FetchPreviews(list);
                     Community.PrunePreviews(list);
                 }
                 catch (Exception) { list = null; }

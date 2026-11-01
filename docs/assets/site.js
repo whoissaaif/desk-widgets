@@ -72,6 +72,7 @@ export function nav(current) {
     el("div", { class: "content" },
       "Desk Widgets is free and open source. Community widgets are reviewed before they appear here. ",
       el("a", { href: REPO_URL }, "Source on GitHub"))));
+  document.body.append(themeToggle());
   showPendingToast();
   accountNav(account, current).catch(() => account.replaceChildren(signInLink(current)));
 }
@@ -148,8 +149,8 @@ async function accountNav(host, current) {
   document.addEventListener("click", e => { if (!menu.contains(e.target)) close(); });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && menu.classList.contains("open")) { close(); button.focus(); } });
   host.replaceChildren(
-    who.admin ? el("a", { class: "link", href: "admin.html", "aria-current": current === "admin" ? "page" : null }, "Admin") : null,
-    button, menu);
+    ...[who.admin && el("a", { class: "link", href: "admin.html", "aria-current": current === "admin" ? "page" : null }, "Admin"),
+    button, menu].filter(Boolean));
 }
 
 // A round profile photo, or the first letter of the name on grey.
@@ -163,6 +164,26 @@ export function avatar(profile, size) {
   return el("span", { class: "avatar", style: style + ";font-size:" + Math.round(size * 0.45) + "px", "aria-hidden": "true" }, letter);
 }
 export const isPhoto = b64 => typeof b64 === "string" && b64.length > 0 && b64.length <= 200000 && BASE64.test(b64);
+
+// Apply saved theme before anything renders (called once at import time).
+const _savedTheme = localStorage.getItem("dw-theme");
+if (_savedTheme) document.documentElement.setAttribute("data-theme", _savedTheme);
+
+// Light / Dark toggle in the footer. Persists in localStorage so the choice sticks across pages.
+function themeToggle() {
+  const stored = localStorage.getItem("dw-theme");
+  const pick = theme => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("dw-theme", theme);
+    for (const b of toggle.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.theme === theme));
+  };
+  const btn = (label, key) => el("button", { type: "button", "data-theme": key,
+    "aria-pressed": String((stored || "") === key), onclick: () => pick(key) }, label);
+  const toggle = el("span", { class: "theme-toggle", role: "group", "aria-label": "Theme" },
+    btn("Light", "light"), btn("Dark", "dark"));
+  return el("div", { class: "theme-bar" },
+    el("span", { class: "theme-label" }, "Theme:"), toggle);
+}
 
 // A short confirmation at the top of the page. With later, it waits for the next page load (for
 // messages about a redirect, like "You're signed in").

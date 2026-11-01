@@ -69,7 +69,7 @@
 
       const username = el("input", { class: "input", id: "username", required: true, pattern: "[a-z0-9-]{2,24}", maxlength: "24",
         autocapitalize: "none", spellcheck: "false", autocomplete: "username", placeholder: "moon-maker",
-        value: who.profile ? who.profile.username : "", disabled: !fresh });
+        value: who.profile ? who.profile.username : "" });
       username.addEventListener("input", () => { username.value = username.value.toLowerCase(); if (!photo) showPhoto(); });
       const password = el("input", { class: "input", id: "password", type: "password", autocomplete: "new-password",
         minlength: String(MIN_PASSWORD), required: fresh });
@@ -98,8 +98,9 @@
             if (error) return fail(/username/.test(error.message) ? "The username " + username.value + " is taken. Try another."
               : "Your account wasn't created: " + error.message);
           } else {
-            const { error } = await db.from("profiles").update({ bio: bio.value.trim(), avatar: photo }).eq("id", who.user.id);
-            if (error) return fail("Your changes weren't saved: " + error.message);
+            const { error } = await db.from("profiles").update({ username: username.value, bio: bio.value.trim(), avatar: photo }).eq("id", who.user.id);
+            if (error) return fail(/username/.test(error.message) ? "The username " + username.value + " is taken or invalid. Try another."
+              : "Your changes weren't saved: " + error.message);
           }
           if (password.value) {
             const { error } = await db.auth.updateUser({ password: password.value });
@@ -111,8 +112,8 @@
           location.href = fresh ? "upload.html" : "account.html";
         } },
         el("div", { class: "field" }, el("label", { for: "username" }, "Username"), username,
-          el("span", { class: "hint" }, fresh ? "2 to 24 lowercase letters, digits or hyphens. You sign in with it, it's shown on your widgets and it's part of their ids, so it can't change later."
-                                              : "Usernames can't change.")),
+          el("span", { class: "hint" }, "2 to 24 lowercase letters, digits or hyphens. You sign in with it, it's shown on your widgets and it's part of their ids."
+            + (fresh ? "" : " Changing it won't rename widgets you already uploaded."))),
         el("div", { class: "field" }, el("label", { for: "password" }, fresh ? "Password" : "New Password"), password,
           el("span", { class: "hint" }, fresh ? "At least " + MIN_PASSWORD + " characters." : "Leave empty to keep your password.")),
         el("div", { class: "field" }, el("label", { for: "bio" }, "Bio (optional)"), bio,
