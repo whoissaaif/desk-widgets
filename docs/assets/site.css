@@ -138,6 +138,12 @@ img { display: block; max-width: 100%; }
   background: linear-gradient(90deg, transparent 0%, rgba(128,128,128,.06) 40%, rgba(128,128,128,.12) 50%, rgba(128,128,128,.06) 60%, transparent 100%);
   animation: shimmer 1.6s ease-in-out infinite; }
 @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.text-skeleton { display: block; border-radius: 4px; background: rgba(128,128,128,.08); position: relative; overflow: hidden; }
+.text-skeleton::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(128,128,128,.06) 40%, rgba(128,128,128,.12) 50%, rgba(128,128,128,.06) 60%, transparent 100%);
+  animation: shimmer 1.6s ease-in-out infinite; }
+.text-skeleton.name { height: 16px; width: 70%; margin-bottom: 6px; }
+.text-skeleton.by { height: 12px; width: 50%; }
 .tile-row { display: flex; gap: 12px; align-items: center; }
 .tile-row .text { flex: 1; min-width: 0; }
 .tile-row .name { font: 600 15px/20px var(--font-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
