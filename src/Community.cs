@@ -117,6 +117,63 @@ namespace DeskWidgets
             return bmp;
         }
 
+        // All previews for a list of widgets: from disk cache when available, otherwise one batch
+        // query for all uncached previews instead of one HTTP request per widget.
+        public static Dictionary<Listing, Bitmap> FetchPreviews(List<Listing> listings)
+        {
+            var result = new Dictionary<Listing, Bitmap>();
+            var uncached = new List<Listing>();
+            foreach (var l in listings)
+            {
+                if (!Plugins.IsValidId(l.Id) || l.Version < 1) { result[l] = null; continue; }
+                string png = PreviewFile(l, ".png"), none = PreviewFile(l, ".none");
+                try
+                {
+                    if (File.Exists(none)) { result[l] = null; continue; }
+                    if (File.Exists(png))
+                    {
+                        Bitmap cached = DecodePreview(File.ReadAllBytes(png));
+                        if (cached != null) { result[l] = cached; continue; }
+                        File.Delete(png);
+                    }
+                }
+                catch (Exception) { }
+                uncached.Add(l);
+            }
+            if (uncached.Count > 0)
+            {
+                try
+                {
+                    object[] rows = Query("explore?select=id,version,preview&id=in.(" +
+                        string.Join(",", uncached.Select(u => u.Id)) + ")");
+                    var byId = new Dictionary<string, object>();
+                    foreach (var r in rows) { string id = Text(r, "id"); if (id != null) byId[id] = r; }
+                    Directory.CreateDirectory(PreviewDir);
+                    foreach (var l in uncached)
+                    {
+                        object row;
+                        string base64 = byId.TryGetValue(l.Id, out row) ? Text(row, "preview") : null;
+                        byte[] bytes = null;
+                        if (!string.IsNullOrEmpty(base64) && base64.Length <= 140000)
+                            try { bytes = Convert.FromBase64String(base64); } catch (FormatException) { }
+                        Bitmap bmp = bytes != null ? DecodePreview(bytes) : null;
+                        result[l] = bmp;
+                        try
+                        {
+                            if (bmp != null) File.WriteAllBytes(PreviewFile(l, ".png"), bytes);
+                            else File.WriteAllBytes(PreviewFile(l, ".none"), new byte[0]);
+                        }
+                        catch (Exception) { }
+                    }
+                }
+                catch (Exception)
+                {
+                    foreach (var l in uncached) result[l] = null;
+                }
+            }
+            return result;
+        }
+
         // Deletes cached previews of versions that are no longer listed.
         public static void PrunePreviews(IEnumerable<Listing> listed)
         {

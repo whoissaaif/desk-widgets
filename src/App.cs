@@ -115,9 +115,17 @@ namespace DeskWidgets
             string configPath = ConfigPath();
             DataDir = Path.GetDirectoryName(configPath);
             config = Config.Load(configPath);
-            Plugins.LoadAll();
             OpenAll();
-            NotifyOrphanedWidgets();
+            // Community plugins load after a short delay so the compile-and-execute
+            // pattern doesn't fire during the window where antivirus behavioral
+            // monitoring is most aggressive. Built-in widgets are already on screen.
+            Ui.Later(delegate
+            {
+                Plugins.LoadAll();
+                foreach (var p in Plugins.Installed)
+                    if (p.Type != null) OpenType(p.Id);
+                NotifyOrphanedWidgets();
+            }, 5000);
 
             tray = new NotifyIcon { Icon = LoadIcon(SystemInformation.SmallIconSize), Text = AppName, Visible = true };
             tray.MouseClick += delegate(object s, MouseEventArgs e)

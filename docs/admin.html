@@ -54,16 +54,31 @@
       if (!who.admin) { page.replaceChildren(notice("This page is for the owner.", true)); return; }
       const db = await supabase();
 
-      const { data: pending, error } = await db.from("versions")
-        .select("widget_id, version, name, category, description, api_version, source, preview, created_at")
-        .eq("status", "pending").order("created_at");
+      const [{ data: pending, error }, { data: requests }, { data: allWidgets }, { data: allVersions }, { data: allProfiles }] = await Promise.all([
+        db.from("versions").select("widget_id, version, name, category, description, api_version, source, preview, created_at")
+          .eq("status", "pending").order("created_at"),
+        db.from("access_requests").select("id, email, created_at")
+          .eq("status", "pending").order("created_at"),
+        db.from("widgets").select("id, slug, owner, created_at").order("id"),
+        db.from("versions").select("widget_id, version, name, status"),
+        db.from("profiles").select("id, username"),
+      ]);
       if (error) throw error;
+
+      const pendingWidgetIds = [...new Set((pending || []).filter(v => isValidId(v.widget_id)).map(v => v.widget_id))];
+      const prevMap = {};
+      if (pendingWidgetIds.length) {
+        const { data: prevVersions } = await db.from("versions").select("widget_id, version, source")
+          .in("widget_id", pendingWidgetIds).eq("status", "approved")
+          .order("version", { ascending: false });
+        for (const pv of prevVersions || [])
+          if (!prevMap[pv.widget_id]) prevMap[pv.widget_id] = pv;
+      }
 
       const queue = [];
       for (const v of pending || []) {
         if (!isValidId(v.widget_id)) continue;
-        const { data: prev } = await db.from("versions").select("version, source").eq("widget_id", v.widget_id)
-          .eq("status", "approved").order("version", { ascending: false }).limit(1).maybeSingle();
+        const prev = prevMap[v.widget_id] || null;
         const result = el("div");
         // Code that reads differently from how it compiles can't be approved (the database refuses
         // such uploads too; this covers anything that got in before that rule).
@@ -96,8 +111,6 @@
       }
 
       // ---- access requests: Accept emails an invite (functions/invite), Reject just records it ----
-      const { data: requests } = await db.from("access_requests").select("id, email, created_at")
-        .eq("status", "pending").order("created_at");
       const requestGroup = el("div", { class: "group" });
       const requestEmpty = el("p", { class: "t-reduced" }, "No one is waiting for access.");
       const requestRows = (requests || []).map(rq => {
@@ -123,9 +136,6 @@
       });
 
       // ---- all widgets: every widget on the platform, with delete ----
-      const { data: allWidgets } = await db.from("widgets").select("id, slug, owner, created_at").order("id");
-      const { data: allVersions } = await db.from("versions").select("widget_id, version, name, status");
-      const { data: allProfiles } = await db.from("profiles").select("id, username");
       const profileMap = Object.fromEntries((allProfiles || []).map(p => [p.id, p.username]));
       const versionsByWidget = {};
       for (const v of allVersions || []) {

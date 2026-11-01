@@ -149,8 +149,8 @@ async function accountNav(host, current) {
   document.addEventListener("click", e => { if (!menu.contains(e.target)) close(); });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && menu.classList.contains("open")) { close(); button.focus(); } });
   host.replaceChildren(
-    who.admin ? el("a", { class: "link", href: "admin.html", "aria-current": current === "admin" ? "page" : null }, "Admin") : null,
-    button, menu);
+    ...[who.admin && el("a", { class: "link", href: "admin.html", "aria-current": current === "admin" ? "page" : null }, "Admin"),
+    button, menu].filter(Boolean));
 }
 
 // A round profile photo, or the first letter of the name on grey.
