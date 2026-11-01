@@ -26,7 +26,16 @@
     <div id="view-widgets">
       <h2 class="explore-head" id="widgets-head">Widgets</h2>
       <div id="status"></div>
-      <div class="explore-grid" id="grid" aria-live="polite"></div>
+      <div class="explore-grid" id="grid" aria-live="polite">
+        <div class="widget-card placeholder"><div class="art skeleton"></div><div class="widget-card-body"><div class="widget-card-text"><span class="text-skeleton name"></span><span class="text-skeleton by"></span></div></div></div>
+        <div class="widget-card placeholder"><div class="art skeleton"></div><div class="widget-card-body"><div class="widget-card-text"><span class="text-skeleton name"></span><span class="text-skeleton by"></span></div></div></div>
+        <div class="widget-card placeholder"><div class="art skeleton"></div><div class="widget-card-body"><div class="widget-card-text"><span class="text-skeleton name"></span><span class="text-skeleton by"></span></div></div></div>
+        <div class="widget-card placeholder"><div class="art skeleton"></div><div class="widget-card-body"><div class="widget-card-text"><span class="text-skeleton name"></span><span class="text-skeleton by"></span></div></div></div>
+        <div class="widget-card placeholder"><div class="art skeleton"></div><div class="widget-card-body"><div class="widget-card-text"><span class="text-skeleton name"></span><span class="text-skeleton by"></span></div></div></div>
+        <div class="widget-card placeholder"><div class="art skeleton"></div><div class="widget-card-body"><div class="widget-card-text"><span class="text-skeleton name"></span><span class="text-skeleton by"></span></div></div></div>
+        <div class="widget-card placeholder"><div class="art skeleton"></div><div class="widget-card-body"><div class="widget-card-text"><span class="text-skeleton name"></span><span class="text-skeleton by"></span></div></div></div>
+        <div class="widget-card placeholder"><div class="art skeleton"></div><div class="widget-card-body"><div class="widget-card-text"><span class="text-skeleton name"></span><span class="text-skeleton by"></span></div></div></div>
+      </div>
     </div>
 
     <div id="view-people" hidden>
@@ -179,7 +188,7 @@
     }
 
     async function load() {
-      if (!configured) { status.replaceChildren(notice("The community gallery isn't connected yet. The built-in widgets come with the app.")); return; }
+      if (!configured) { grid.replaceChildren(); status.replaceChildren(notice("The community gallery isn't connected yet. The built-in widgets come with the app.")); return; }
       try {
         const db = await supabase();
         const [{ data: widgetData, error: wErr }, { data: authorData, error: aErr }] = await Promise.all([
@@ -190,10 +199,11 @@
         if (aErr) throw aErr;
         widgets = (widgetData || []).filter(w => isValidId(w.id));
         authors = authorData || [];
-        if (!widgets.length) status.replaceChildren(el("div", { class: "empty" },
-          el("p", { class: "t-card" }, "Nothing here yet."), el("p", {}, "Reviewed community widgets will appear here.")));
+        if (!widgets.length) { grid.replaceChildren(); status.replaceChildren(el("div", { class: "empty" },
+          el("p", { class: "t-card" }, "Nothing here yet."), el("p", {}, "Reviewed community widgets will appear here."))); }
         render();
       } catch (e) {
+        grid.replaceChildren();
         status.replaceChildren(notice("The gallery couldn't load. Check your connection and reload the page.", true));
       }
     }
