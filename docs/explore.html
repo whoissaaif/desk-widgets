@@ -112,9 +112,36 @@
       searchResults.hidden = false;
     }
 
+    const previewObserver = new IntersectionObserver((entries, obs) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const el_ = entry.target, id = el_.dataset.widgetId;
+        obs.unobserve(el_);
+        const w = widgets.find(w => w.id === id);
+        if (!w) return;
+        loadPreview(el_, w);
+      }
+    }, { rootMargin: "200px" });
+
+    async function loadPreview(artEl, w) {
+      try {
+        const db = await supabase();
+        const { data } = await db.from("explore").select("preview").eq("id", w.id).maybeSingle();
+        if (data && data.preview) {
+          artEl.className = "art";
+          artEl.replaceChildren(el("img", { src: "data:image/png;base64," + data.preview, alt: w.name + " preview" }));
+          return;
+        }
+      } catch {}
+      artEl.className = "art";
+      artEl.replaceChildren(el("span", { class: "none" }, "No preview"));
+    }
+
     function widgetCard(w) {
+      const artEl = el("div", { class: "art skeleton", "data-widget-id": w.id });
+      previewObserver.observe(artEl);
       return el("article", { class: "widget-card" },
-        el("a", { href: "widget.html?id=" + encodeURIComponent(w.id), "aria-label": w.name }, art(w.preview, w.name)),
+        el("a", { href: "widget.html?id=" + encodeURIComponent(w.id), "aria-label": w.name }, artEl),
         el("div", { class: "widget-card-body" },
           el("div", { class: "widget-card-text" },
             el("a", { class: "name", href: "widget.html?id=" + encodeURIComponent(w.id) }, w.name),
@@ -156,14 +183,13 @@
       try {
         const db = await supabase();
         const [{ data: widgetData, error: wErr }, { data: authorData, error: aErr }] = await Promise.all([
-          db.from("explore").select("*").order("reviewed_at", { ascending: false }),
+          db.from("explore").select("id, version, name, category, description, api_version, sha256, reviewed_at, author").order("reviewed_at", { ascending: false }),
           db.from("authors").select("username, bio, avatar"),
         ]);
         if (wErr) throw wErr;
         if (aErr) throw aErr;
         widgets = (widgetData || []).filter(w => isValidId(w.id));
-        const activeAuthors = new Set(widgets.map(w => w.author));
-        authors = (authorData || []).filter(a => activeAuthors.has(a.username));
+        authors = authorData || [];
         if (!widgets.length) status.replaceChildren(el("div", { class: "empty" },
           el("p", { class: "t-card" }, "Nothing here yet."), el("p", {}, "Reviewed community widgets will appear here.")));
         render();
