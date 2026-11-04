@@ -16,8 +16,16 @@ memory and about 0.3% of one CPU core with seven widgets on the desktop.
 ## Install
 
 Download `DeskWidgets.exe` from the [latest release](https://github.com/whoissaaif/desk-widgets/releases/latest)
-and run it. It adds itself to the Start menu. Windows SmartScreen may warn about an unsigned app
-the first time; choose More info › Run anyway, or build it yourself from source (below).
+and run it — it's a single file, no installer needed. It adds itself to the Start menu and
+registers the `deskwidgets://` protocol for one-click installs from the website.
+
+An **installer** (`DeskWidgets-Setup.exe`) is also available in the release. It does the same
+setup with a wizard and adds an uninstaller to Settings › Apps.
+
+Windows SmartScreen may warn about an unsigned app the first time; choose More info › Run anyway,
+or build it yourself from source (below).
+
+The app checks for updates automatically and shows a dialog when a new version is available.
 
 ## Build & run (any Windows PC)
 
@@ -41,26 +49,44 @@ git config core.hooksPath .githooks
 
 ## Widgets
 
+The app ships with three built-in clock faces. Everything else — calendar, weather, system monitor,
+and more — is published through the **community gallery** and installed from Explore. This keeps the
+app small and lets widgets update independently.
+
+### Built-in
+
+| Widget | Size | Notes |
+| --- | --- | --- |
+| Analog Clock | Small | Local time, classic dial |
+| Analog Clock · Dark | Small | Local time, dark dial |
+| World Clock | Small | Any city (starts on Paris) |
+
+### Community (shipped by the owner, installed from Explore)
+
 | Category | Widget | Size | Notes |
 | --- | --- | --- | --- |
-| Clocks | Analog clock, dark clock, world clock | Small | City, size, seconds hand, face |
 | Productivity | Calendar | Medium | Today, next events, the month; events from calendar subscription links (.ics) |
 | Weather | Weather | Medium | Open-Meteo (free, no account); type a city once; °C or °F; refreshes every 15 min |
-| Productivity | Focus timer | Small | Start/pause/reset; keeps running across restarts |
-| Productivity | Reminders | Medium | Click a circle to tick off, click elsewhere to add; can also list today's Calendar events (ticking one only affects this list) |
+| Productivity | Focus Timer | Small | Start/pause/reset; keeps running across restarts |
+| Productivity | Reminders | Medium | Click a circle to tick off, click elsewhere to add; can also list today's Calendar events |
 | Productivity | Notes | Small | Click and type straight on it; first line is the title; click away or Esc to save |
 | System | System | Small | CPU (1 min history), memory, disk; reads Windows directly every 2 s |
-| Media | Photo frame | Medium | Just the picture (no file name); animated GIFs play (max 15 fps, paused while other windows hide the widget); changes hourly or on hover › next |
-| Media | Now playing | Medium | Whatever Windows is playing (Spotify, browsers, Media Player): art, progress, play/pause/skip |
+| Media | Photo Frame | Medium | Just the picture (no file name); animated GIFs play; changes hourly or on hover › next |
+| Media | Now Playing | Medium | Whatever Windows is playing (Spotify, browsers, Media Player): art, progress, play/pause/skip |
 | Developer | GitHub | Medium | Profile, streak, 30 weeks of contributions; refreshes every 30 min |
+| Sports | F1 Hub | Medium | Next race, schedule, standings from the Jolpica F1 API |
+| Sports | F1 Live Timing | Large | Session timing, gaps, track map from OpenF1 |
 
-Card widgets follow Apple's widget specs (small 170 × 170 pt, medium 364 × 170 pt, 16 pt margins,
-22 pt corners) with **Dark**, **Light** and **Vibrant** appearances and three sizes. Vibrant shows your
-wallpaper blurred behind the widget with white content, like macOS desktop widgets; it is sampled from
-a tiny cached copy of the wallpaper, so it costs nothing while idle (it re-samples when you move the
-widget or change the wallpaper). The analog clocks have a Vibrant face too. The design language is
-`design/apple-design.md` (section 17 covers this app); `design/essential-widgets.html` is a mockup
-of the widgets.
+Users upgrading from an older version that had these as built-in are prompted to download them from
+Explore; their settings are migrated automatically.
+
+Card widgets follow Apple's widget specs (small 170 × 170 pt, medium 364 × 170 pt, large
+364 × 382 pt, 16 pt margins, 22 pt corners) with **Dark**, **Light** and **Vibrant** appearances.
+Vibrant shows your wallpaper blurred behind the widget with white content, like macOS desktop
+widgets; it is sampled from a tiny cached copy of the wallpaper, so it costs nothing while idle (it
+re-samples when you move the widget or change the wallpaper). The analog clocks have a Vibrant face
+too. The design language is `design/apple-design.md` (section 17 covers this app);
+`design/essential-widgets.html` is a mockup of the widgets.
 
 **Calendar events:** right-click › Add a calendar, and paste the calendar's private iCal link
 (Google: "Secret address in iCal format"; Outlook: Publish calendar; iCloud: public link). Links and
@@ -78,19 +104,27 @@ widget shows instantly at startup and keeps working offline.
 ## Using it
 
 - **The app window**: open it from the Start menu, the tray icon, or by launching the exe again.
-  Widgets are grouped by category in the sidebar; Installed lists the widgets you added from files. **Drag** a widget out onto the
-  desktop, or **double-click** it to drop it mid-screen. Closing the window frees its memory; widgets
-  and the tray icon keep running.
+  Widgets are grouped by category in the sidebar; Installed lists the widgets you added.
+  **Drag** a widget out onto the desktop, or **double-click** it to drop it mid-screen. Closing the
+  window frees its memory; widgets and the tray icon keep running.
 - **On the desktop**: drag a widget to move it; click its buttons to use it. Right-click it for its
   options. Menus, dialogs and the window are drawn in Apple's style and follow the Windows light/dark
   setting.
-- **Tray menu**: Open Desk Widgets, Start with Windows, Quit Desk Widgets.
-- **Community widgets**: Explore (in the window and on the website) lists widgets other people
-  wrote, each read and approved by the owner first. Get opens Desk Widgets, which downloads that
-  exact version, checks its hash and asks before installing. Explore marks the ones you have as
-  Installed. Installed lists them, with Update when a newer approved version is out and Install
-  from File… for a `.cs` you wrote yourself (see `samples/HelloWidget.cs`). Setup of the backend
-  and website: `server/README.md`; the design: `design/community-plan.md`.
+- **Tray menu**: Open Desk Widgets, Start with Windows, High Priority, Quit Desk Widgets.
+- **Start with Windows** launches with `--background`: widgets come back, no window opens. The app
+  only changes this entry when you toggle it.
+- **High Priority** uses Task Scheduler (Above Normal priority) instead of the registry Run key,
+  so widgets start earlier and render more smoothly alongside heavy apps.
+- **Auto-update**: the app checks GitHub releases in the background and shows a dialog when a new
+  version is available, with release notes and a download link.
+- **Community widgets**: Explore (in the window and on the website) lists community widgets, each
+  read and approved by the owner before it appears. **Get** opens Desk Widgets, which downloads
+  that exact version, checks its hash and asks before installing. Clicking Get on the website uses
+  the `deskwidgets://install/` protocol to hand the install to the running app. Explore marks the
+  ones you have as Installed. The Installed section shows them with **Update** when a newer approved
+  version is out, and **Install from File…** for a `.cs` you wrote yourself (see
+  `samples/HelloWidget.cs`). Setup of the backend and website: `server/README.md`; the design:
+  `design/community-plan.md`.
 - **Uploading your own**: uploading is by invitation. Request access with your email on the
   [Upload page](https://whoissaaif.github.io/desk-widgets/upload.html); when the owner accepts,
   you get an email to choose a username, password, bio and photo. Then sign in on the website or in
@@ -98,8 +132,6 @@ widget shows instantly at startup and keeps working offline.
   Upload a Widget…, or right-click a widget you installed from a file › Upload to the Gallery…
   (it sends a preview rendered from the widget). The app keeps only a refresh token, encrypted with
   DPAPI in `%APPDATA%\DeskWidgets\account.dat`.
-- **Start with Windows** launches with `--background`: widgets come back, no window opens. The app
-  only changes this entry when you toggle it.
 
 ## Settings & portability
 
@@ -115,10 +147,16 @@ widget shows instantly at startup and keeps working offline.
 - Per-pixel-alpha layered window (`UpdateLayeredWindow`) drawing into one reusable DIB, with no per-frame allocations.
 - Widgets redraw only when something changes: the clock once a second, System every 2 s, the timer
   only while running, the rest on demand. Drawing pauses while the PC is locked.
-- Slow work (GitHub, weather and calendar requests, decoding photos) runs on background threads; photos are kept only as a
+- Slow work (network requests, decoding photos) runs on background threads; photos are kept only as a
   widget-sized bitmap.
 
 ## Adding a new widget
+
+Most widgets belong in the community gallery, not compiled into the app. Write one C# file (start
+from `samples/HelloWidget.cs`), test it with Installed › Install from File…, then upload it to the
+gallery. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+To add a **built-in** widget:
 
 1. Create `src/Widgets/MyWidget.cs`. For an Apple-style card, derive from `CardWidget`
    (`base(settings, medium)`) and implement `DrawContent(g, pal)`, laying out in points with `P()`.
@@ -142,11 +180,12 @@ Code must stay C# 5 (the compiler built into Windows): no `$"..."`, `?.`, or `=>
 | Path | What |
 | --- | --- |
 | `src/` | The app (one exe, C# 5, no dependencies) |
-| `docs/` | The website, served by GitHub Pages from `main` |
-| `server/` | Supabase schema, Edge Functions and their tests |
-| `design/` | The design language (`apple-design.md`), the community design and the task list |
-| `samples/` | A minimal community widget |
-| `tools/` | Icon generator and the hidden-character check |
+| `docs/` | The website (landing page, explore, profiles, upload, admin), served by GitHub Pages from `main` |
+| `server/` | Supabase schema, Edge Functions (`invite`, `login`), email templates, and tests |
+| `design/` | The design language (`apple-design.md`), the community design and widget mockups |
+| `packaging/` | Inno Setup installer script and MSIX manifest for Windows packaging |
+| `samples/` | A minimal community widget (`HelloWidget.cs`) |
+| `tools/` | Icon generator, hidden-character check, and carousel validation |
 
 ## Contributing
 
