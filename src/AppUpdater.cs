@@ -10,7 +10,7 @@ namespace DeskWidgets
 {
     static class AppUpdater
     {
-        internal const string AppVersion = "1.8.0";
+        internal const string AppVersion = "1.8.1";
         const string RepoOwner = "whoissaaif";
         const string RepoName = "desk-widgets";
         const string ApiUrl = "https://api.github.com/repos/" + RepoOwner + "/" + RepoName + "/releases/latest";
