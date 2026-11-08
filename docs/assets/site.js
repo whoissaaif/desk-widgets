@@ -304,7 +304,9 @@ function showPendingToast() {
 // options: author false drops the "by" line (a profile page is already one person's), and status
 // replaces Get with that version's pill, for the owner's unapproved widgets.
 export function widgetCard(w, artNode, options = {}) {
-  const href = "widget.html?id=" + encodeURIComponent(w.id);
+  // The generated page (tools/build-widget-pages.mjs): same content, but it unfurls as itself
+  // when shared. 404.html sends a widget without a page yet back to widget.html?id=.
+  const href = "w/" + encodeURIComponent(w.id) + "/";
   const by = options.author === false ? [categoryName(w.category)]
     : [el("a", { href: "profile.html?user=" + encodeURIComponent(w.author) }, w.author),
        " · " + categoryName(w.category)];

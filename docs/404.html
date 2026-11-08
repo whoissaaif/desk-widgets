@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Not found · Desk Widgets</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="/desk-widgets/assets/site.css">
+  <script>
+    // shortcut: paths are hardcoded to the /desk-widgets/ project-site prefix, because a 404 is
+    // served at any depth so relative paths cannot work; revisit if the site moves to its own domain.
+    // A widget approved since the last run of tools/build-widget-pages.mjs has no /w/<id>/ page
+    // yet, and Explore links there. Send those visitors to the page that works for any widget,
+    // rather than showing them a dead end. Same id rule as isValidId in assets/site.js.
+    var m = location.pathname.match(/\/w\/(u\.[a-z0-9-]+\.[a-z0-9-]+)\/?$/);
+    if (m) location.replace("/desk-widgets/widget.html?id=" + encodeURIComponent(m[1]));
+  </script>
+</head>
+<body>
+  <main class="content narrow section">
+    <h1 class="t-large">Not found</h1>
+    <p>That page doesn't exist. Try <a href="/desk-widgets/explore.html">Explore</a> to browse the
+    widgets, or <a href="/desk-widgets/">the home page</a>.</p>
+  </main>
+  <script type="module">
+    import { nav } from "/desk-widgets/assets/site.js";
+    nav(null);
+  </script>
+</body>
+</html>
