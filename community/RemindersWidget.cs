@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
+using System.Windows.Forms;
 using DeskWidgets;
 using DeskWidgets.Widgets;
 
 // Medium: open reminder count and up to four reminders you can tick off.
-// Click a circle to complete it, click anywhere else to add one. Optionally shows today's
-// events from your Calendar widget as reminders too (ticking one only affects this list).
+// Click a circle to complete it, click the text to edit or delete it, click anywhere else to
+// add one. Optionally shows today's events from your Calendar widget as reminders too.
 [DeskWidget(Name = "Reminders", Description = "Tick off reminders and today's events")]
 public sealed class RemindersWidget : CardWidget
 {
@@ -16,14 +17,15 @@ public sealed class RemindersWidget : CardWidget
 
     sealed class Item { public string Text; public bool Done; }
 
-    // One line in the list: either a stored reminder or one of today's calendar events.
     sealed class Row
     {
         public string Text, Time;
         public bool Done;
-        public int Item = -1;      // index into Items, for reminders
-        public string EventKey;    // for calendar events
+        public int Item = -1;
+        public string EventKey;
     }
+
+    int scrollOffset;
 
     public RemindersWidget(Section settings) : base(settings, true) { }
 
@@ -39,7 +41,16 @@ public sealed class RemindersWidget : CardWidget
         if (ShowEvents) Render();
     }
 
-    // Redraw each minute while showing events, so finished ones drop off.
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        var rows = BuildRows(Items);
+        int maxOffset = Math.Max(0, rows.Count - Rows);
+        int next = scrollOffset + (e.Delta > 0 ? -1 : 1);
+        next = Math.Max(0, Math.Min(maxOffset, next));
+        if (next != scrollOffset) { scrollOffset = next; Render(); }
+    }
+
     protected override int NextFrameDelay()
     {
         if (!ShowEvents || !IsHandleCreated) return -1;
@@ -47,7 +58,6 @@ public sealed class RemindersWidget : CardWidget
         return (60 - now.Second) * 1000 - now.Millisecond + 300;
     }
 
-    // Stored one per line as "0|text" (open) or "1|text" (done).
     List<Item> Items
     {
         get
@@ -62,7 +72,6 @@ public sealed class RemindersWidget : CardWidget
         }
     }
 
-    // Calendar events ticked off today, as "title|startTicks" keys.
     HashSet<string> DoneEvents
     {
         get { return new HashSet<string>(Settings.GetText("doneEvents", "").Split('\n').Where(k => k.Length > 0)); }
@@ -70,8 +79,6 @@ public sealed class RemindersWidget : CardWidget
 
     static string KeyOf(CalEvent e) { return e.Title.Replace('\n', ' ') + "|" + e.Start.Ticks; }
 
-    // Today's events (still to come, or ticked) first in time order, then open reminders, then
-    // completed ones to fill the space.
     List<Row> BuildRows(List<Item> items)
     {
         var rows = new List<Row>();
@@ -84,7 +91,7 @@ public sealed class RemindersWidget : CardWidget
             {
                 string key = KeyOf(e);
                 bool isDone = done.Contains(key);
-                if (!isDone && e.End <= now) continue; // over and not ticked: let it go
+                if (!isDone && e.End <= now) continue;
                 rows.Add(new Row { Text = e.Title, Time = e.AllDay ? "All day" : e.Start.ToString("t", culture), Done = isDone, EventKey = key });
             }
         }
@@ -103,13 +110,17 @@ public sealed class RemindersWidget : CardWidget
     {
         if (p.X < ListX - P(4)) return -1;
         int row = (int)((p.Y - P(14)) / RowH);
-        return p.Y < P(14) || row >= Rows ? -1 : row;
+        return p.Y < P(14) || row >= Rows ? -1 : row + scrollOffset;
     }
 
     protected override bool IsButton(Point p)
     {
         int row = RowAt(p);
-        return row >= 0 && row < Math.Min(Rows, BuildRows(Items).Count) && p.X < ListX + P(26);
+        if (row < 0) return false;
+        var rows = BuildRows(Items);
+        if (row >= rows.Count) return false;
+        if (p.X < ListX + P(26)) return true;
+        return rows[row].Item >= 0;
     }
 
     protected override void OnWidgetClick(Point p)
@@ -117,8 +128,24 @@ public sealed class RemindersWidget : CardWidget
         var items = Items;
         var rows = BuildRows(items);
         int row = RowAt(p);
-        if (row < 0 || row >= Math.Min(Rows, rows.Count) || p.X >= ListX + P(26)) { Add(); return; }
+        if (row < 0 || row >= rows.Count) { Add(); return; }
         Row r = rows[row];
+        if (p.X < ListX + P(26))
+        {
+            ToggleRow(r, items);
+        }
+        else if (r.Item >= 0)
+        {
+            Edit(r.Item);
+        }
+        else
+        {
+            Add();
+        }
+    }
+
+    void ToggleRow(Row r, List<Item> items)
+    {
         if (r.Item >= 0)
         {
             items[r.Item].Done = !items[r.Item].Done;
@@ -126,7 +153,6 @@ public sealed class RemindersWidget : CardWidget
         }
         else
         {
-            // Keep only today's keys so the list doesn't grow forever.
             long todayTicks = DateTime.Today.Ticks, tomorrowTicks = DateTime.Today.AddDays(1).Ticks;
             var done = new HashSet<string>(DoneEvents.Where(k =>
             {
@@ -147,6 +173,29 @@ public sealed class RemindersWidget : CardWidget
         items.Add(new Item { Text = values[0].Trim() });
         Items = items;
         Render();
+    }
+
+    void Edit(int index)
+    {
+        var items = Items;
+        if (index < 0 || index >= items.Count) return;
+        bool deleted = false;
+        var values = InputDialog.Ask("Edit Reminder", null,
+            new[] { new InputDialog.Field { Label = "Reminder", Value = items[index].Text } },
+            "Save", "Delete", delegate { deleted = true; });
+        items = Items;
+        if (deleted)
+        {
+            if (index < items.Count) items.RemoveAt(index);
+            Items = items;
+            Render();
+        }
+        else if (values != null && values[0].Trim().Length > 0)
+        {
+            if (index < items.Count) items[index].Text = values[0].Trim();
+            Items = items;
+            Render();
+        }
     }
 
     void ClearCompleted()
@@ -170,7 +219,6 @@ public sealed class RemindersWidget : CardWidget
         var rows = BuildRows(items);
         int open = rows.Count(r => !r.Done);
 
-        // Left: badge, count, title.
         float br = P(14);
         FillCircle(g, pal.Blue, m + br, m + br, br);
         using (var b = new SolidBrush(pal.OnAccent))
@@ -183,16 +231,17 @@ public sealed class RemindersWidget : CardWidget
         Label(g, open.ToString(), F(30, "semibold"), pal.Fg, m - P(1), H - m - P(58));
         Label(g, "Reminders", F(13, "semibold"), pal.Blue, m, H - m - P(16), P(100), StringAlignment.Near);
 
-        // Right: rows.
         float x = ListX, right = W - m;
         if (rows.Count == 0)
             Label(g, "All done. Click to add a reminder.", F(13, "regular"), pal.Fg2, x, H / 2 - P(9), right - x, StringAlignment.Near);
-        int shown = Math.Min(Rows, rows.Count);
+        int maxScroll = Math.Max(0, rows.Count - Rows);
+        if (scrollOffset > maxScroll) scrollOffset = maxScroll;
+        int shown = Math.Min(Rows, rows.Count - scrollOffset);
         for (int i = 0; i < shown; i++)
         {
-            Row it = rows[i];
+            Row it = rows[scrollOffset + i];
             float top = RowTop(i), cy = top + RowH / 2, r = P(9);
-            Color ring = it.EventKey != null ? pal.Red : pal.Blue; // events wear the Calendar's red
+            Color ring = it.EventKey != null ? pal.Red : pal.Blue;
             if (it.Done)
             {
                 FillCircle(g, ring, x + r, cy, r);
@@ -220,6 +269,24 @@ public sealed class RemindersWidget : CardWidget
                 }
             if (i < shown - 1)
                 using (var sep = new Pen(pal.Sep, 1)) g.DrawLine(sep, x + P(26), top + RowH, right, top + RowH);
+        }
+        if (scrollOffset > 0)
+        {
+            float cy = P(7), cx = (x + right) / 2;
+            using (var pen = new Pen(pal.Fg2, Math.Max(1f, P(1.2f))))
+            {
+                g.DrawLine(pen, cx - P(4), cy + P(1.5f), cx, cy - P(1.5f));
+                g.DrawLine(pen, cx, cy - P(1.5f), cx + P(4), cy + P(1.5f));
+            }
+        }
+        if (scrollOffset + Rows < rows.Count)
+        {
+            float cy = RowTop(Rows) + P(3), cx = (x + right) / 2;
+            using (var pen = new Pen(pal.Fg2, Math.Max(1f, P(1.2f))))
+            {
+                g.DrawLine(pen, cx - P(4), cy - P(1.5f), cx, cy + P(1.5f));
+                g.DrawLine(pen, cx, cy + P(1.5f), cx + P(4), cy - P(1.5f));
+            }
         }
     }
 

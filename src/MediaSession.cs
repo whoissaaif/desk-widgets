@@ -118,6 +118,7 @@ namespace DeskWidgets
         public void PlayPause() { Send(s => s.TryTogglePlayPauseAsync()); }
         public void Next() { Send(s => s.TrySkipNextAsync()); }
         public void Previous() { Send(s => s.TrySkipPreviousAsync()); }
+        public void Seek(long ticks) { Send(s => s.TryChangePlaybackPositionAsync(ticks)); }
 
         void Send(Func<GlobalSystemMediaTransportControlsSession, IAsyncOperation<bool>> command)
         {
