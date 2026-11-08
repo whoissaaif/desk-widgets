@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Windows.Forms;
 using DeskWidgets;
 using DeskWidgets.Widgets;
 
@@ -17,6 +18,8 @@ public sealed class NowPlayingWidget : CardWidget
     Bitmap art;                    // cropped to the art square
     string status;
     bool refreshing, refreshAgain;
+    bool seeking;
+    float seekFrac = -1;
 
     public NowPlayingWidget(Section settings) : base(settings, true) { }
 
@@ -46,12 +49,11 @@ public sealed class NowPlayingWidget : CardWidget
         if (media == null) return;
         if (refreshing) { refreshAgain = true; return; }
         refreshing = true;
-        int artSize = (int)Math.Round(ArtSize);
         var m = media;
         Background(() =>
         {
             var snap = m.Read();
-            Bitmap cover = snap != null && snap.Art != null ? Square(snap.Art, artSize) : null;
+            Bitmap cover = snap != null && snap.Art != null ? Square(snap.Art) : null;
             return Tuple.Create(snap, cover);
         }, (result, error) =>
         {
@@ -59,6 +61,7 @@ public sealed class NowPlayingWidget : CardWidget
             if (error == null)
             {
                 now = result.Item1;
+                if (!seeking) seekFrac = -1;
                 if (art != null) art.Dispose();
                 art = result.Item2;
                 status = null;
@@ -68,20 +71,22 @@ public sealed class NowPlayingWidget : CardWidget
         });
     }
 
-    static Bitmap Square(byte[] bytes, int size)
+    static Bitmap Square(byte[] bytes)
     {
         try
         {
             using (var ms = new MemoryStream(bytes))
             using (var img = Image.FromStream(ms))
             {
+                float srcSide = Math.Min(img.Width, img.Height);
+                int size = Math.Min((int)srcSide, 512);
+                if (size <= 0) return null;
                 var bmp = new Bitmap(size, size, PixelFormat.Format32bppPArgb);
                 using (var g = Graphics.FromImage(bmp))
                 {
                     g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                     g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                    float side = Math.Min(img.Width, img.Height);
-                    g.DrawImage(img, new Rectangle(0, 0, size, size), new RectangleF((img.Width - side) / 2, (img.Height - side) / 2, side, side), GraphicsUnit.Pixel);
+                    g.DrawImage(img, new Rectangle(0, 0, size, size), new RectangleF((img.Width - srcSide) / 2, (img.Height - srcSide) / 2, srcSide, srcSide), GraphicsUnit.Pixel);
                 }
                 return bmp;
             }
@@ -106,7 +111,8 @@ public sealed class NowPlayingWidget : CardWidget
 
     protected override bool IsButton(Point p)
     {
-        return now != null && (Within(p, PlayCenter, P(20)) || Within(p, PrevCenter, P(16)) || Within(p, NextCenter, P(16)));
+        return now != null && (Within(p, PlayCenter, P(20)) || Within(p, PrevCenter, P(16)) || Within(p, NextCenter, P(16))
+            || (now.Duration > TimeSpan.Zero && InProgressBar(p)));
     }
 
     protected override void OnWidgetClick(Point p)
@@ -115,6 +121,50 @@ public sealed class NowPlayingWidget : CardWidget
         if (Within(p, PlayCenter, P(20))) media.PlayPause();
         else if (Within(p, PrevCenter, P(16))) media.Previous();
         else if (Within(p, NextCenter, P(16))) media.Next();
+        else if (now.Duration > TimeSpan.Zero && InProgressBar(p)) SeekToPoint(p);
+    }
+
+    bool InProgressBar(Point p)
+    {
+        if (now == null || now.Duration <= TimeSpan.Zero) return false;
+        float m = P(16), rx = RightX, rw = W - m - rx;
+        float by = m + P(64), bh = P(4), pad = P(10);
+        return p.X >= rx && p.X <= rx + rw && p.Y >= by - pad && p.Y <= by + bh + pad;
+    }
+
+    void SeekToPoint(Point p)
+    {
+        if (media == null || now == null || now.Duration <= TimeSpan.Zero) return;
+        float m = P(16), rx = RightX, rw = W - m - rx;
+        float frac = Math.Max(0f, Math.Min(1f, (p.X - rx) / rw));
+        seekFrac = frac;
+        Render();
+        SeekTo(TimeSpan.FromSeconds(frac * now.Duration.TotalSeconds));
+    }
+
+    void SeekTo(TimeSpan position)
+    {
+        if (media != null) media.Seek(position.Ticks);
+    }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        if (e.Button == MouseButtons.Left && InProgressBar(e.Location) && now != null && now.Duration > TimeSpan.Zero)
+            seeking = true;
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        if (seeking && (MouseButtons & MouseButtons.Left) != 0)
+            SeekToPoint(e.Location);
+        base.OnMouseMove(e);
+    }
+
+    protected override void OnMouseUp(MouseEventArgs e)
+    {
+        base.OnMouseUp(e);
+        seeking = false;
     }
 
     protected override void BuildWidgetMenu(PopupMenu menu)
@@ -134,7 +184,7 @@ public sealed class NowPlayingWidget : CardWidget
         float m = P(16), a = ArtSize, rx = RightX, rw = W - m - rx;
 
         // Album art (or a placeholder note).
-        var artRect = new RectangleF(m, m, a, a);
+        var artRect = new RectangleF((int)Math.Round(m), (int)Math.Round(m), (int)Math.Round(a), (int)Math.Round(a));
         using (var clip = RoundRect(artRect, P(10)))
         {
             if (art != null)
@@ -166,9 +216,15 @@ public sealed class NowPlayingWidget : CardWidget
         // Progress (only when the app reports a timeline; some browsers don't).
         if (s.Duration > TimeSpan.Zero)
         {
-            TimeSpan pos = s.Position + (s.Playing ? DateTime.UtcNow - s.PositionAtUtc : TimeSpan.Zero);
-            if (pos > s.Duration) pos = s.Duration;
-            if (pos < TimeSpan.Zero) pos = TimeSpan.Zero;
+            TimeSpan pos;
+            if (seekFrac >= 0)
+                pos = TimeSpan.FromSeconds(seekFrac * s.Duration.TotalSeconds);
+            else
+            {
+                pos = s.Position + (s.Playing ? DateTime.UtcNow - s.PositionAtUtc : TimeSpan.Zero);
+                if (pos > s.Duration) pos = s.Duration;
+                if (pos < TimeSpan.Zero) pos = TimeSpan.Zero;
+            }
             float by = m + P(64), bh = P(4);
             FillRound(g, pal.Fill, new RectangleF(rx, by, rw, bh), bh / 2);
             float frac = (float)(pos.TotalSeconds / s.Duration.TotalSeconds);
