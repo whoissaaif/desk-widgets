@@ -270,7 +270,7 @@ namespace DeskWidgets
             pixelShiftToggle.Visible = settingsOpen;
             settingsAppearanceLabel.Visible = settingsOpen;
             updateLabel.Visible = settingsOpen;
-            updateRefresh.Visible = settingsOpen;
+            updateRefresh.Visible = settingsOpen && !App.IsPackaged;
             updateStatus.Visible = settingsOpen && updateStatus.Visible;
             updateInstall.Visible = settingsOpen && updateInstall.Visible;
             uninstallButton.Visible = settingsOpen;
@@ -406,7 +406,8 @@ namespace DeskWidgets
                 themeItems[i] = item;
             }
 
-            updateLabel = new Label { Text = "Check for Updates", Font = Theme.Body, ForeColor = Theme.Label, AutoSize = true };
+            updateLabel = new Label { Text = App.IsPackaged ? "Updates come from the Microsoft Store" : "Check for Updates",
+                Font = Theme.Body, ForeColor = Theme.Label, AutoSize = true };
             content.Controls.Add(updateLabel);
 
             updateStatus = new Label { Font = Theme.Footnote, ForeColor = Theme.Label2, AutoSize = true, Visible = false };

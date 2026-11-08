@@ -49,6 +49,11 @@ namespace DeskWidgets
 
         static bool FindUpdate()
         {
+            // The Store updates a packaged build, and an MSIX install folder is read-only, so the
+            // swap below could not work even if policy allowed it. One gate: every entry point
+            // reaches here, and PromptInstall has nothing cached without it.
+            if (App.IsPackaged) return false;
+
             string json = Http.Get(ApiUrl);
             var jss = new System.Web.Script.Serialization.JavaScriptSerializer();
             var obj = jss.DeserializeObject(json) as Dictionary<string, object>;
