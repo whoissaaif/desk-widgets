@@ -70,8 +70,22 @@ namespace DeskWidgets
         public const int MaxSourceBytes = 512 * 1024;
         static readonly Regex IdPattern = new Regex(@"^u\.[a-z0-9-]+\.[a-z0-9-]+\z");
 
-        static readonly string Root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DeskWidgets", "plugins");
+        static readonly string Root = Path.Combine(LocalAppData(), "DeskWidgets", "plugins");
+
+        // Where a widget's source and its compiled DLL live. It has to be a path csc.exe agrees on:
+        // MSIX redirects a packaged app's writes under %LOCALAPPDATA% into the package's LocalCache,
+        // but csc is handed the unredirected path, finds nothing there and fails with CS2001
+        // ("Source file could not be found"), so no community widget could be installed from the
+        // Store build. The package's own LocalState is a real path on both sides of that fence.
+        static string LocalAppData()
+        {
+            if (App.IsPackaged)
+            {
+                try { return Windows.Storage.ApplicationData.Current.LocalFolder.Path; }
+                catch (Exception) { }
+            }
+            return Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        }
         static string MarkerPath { get { return Path.Combine(Root, "crash.marker"); } }
 
         static readonly Dictionary<string, PluginInfo> installed = new Dictionary<string, PluginInfo>();
