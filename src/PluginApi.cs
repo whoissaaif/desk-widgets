@@ -3,12 +3,18 @@ using System.Collections.Generic;
 
 namespace DeskWidgets
 {
-    // What community widgets compile against ("API v2"): this file plus WidgetWindow, CardWidget,
+    // What community widgets compile against ("API v3"): this file plus WidgetWindow, CardWidget,
     // Section, PopupMenu, InputDialog, Http, CalEvent, Ics, MediaSession, F1, F1LiveFeed.
     // Treat public signatures as frozen: changing one breaks every installed widget.
     public static class PluginApi
     {
-        public const int Version = 2;
+        // Bump this whenever anything is ADDED to that surface, not only when something changes.
+        // A widget declares the version it needs, and Community.Confirm refuses to install one that
+        // needs more than this app has, with a message telling the person to update. Adding
+        // MediaSession.Seek without bumping is why installing Now Playing v2 on an older app showed
+        // a raw compiler error instead: the widget asked for 2, the older app also said 2, and the
+        // check saw nothing wrong.
+        public const int Version = 3;
 
         public static string DataDir { get { return App.DataDir; } }
 

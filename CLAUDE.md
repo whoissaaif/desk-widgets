@@ -95,9 +95,13 @@ Single-process, single-exe WinForms app. No designer files — all UI is hand-co
   `%LOCALAPPDATA%\DeskWidgets\plugins\<id>\`.
 - **`Community.cs`** — reads the Supabase gallery (public anon key, RLS), downloads previews,
   installs approved versions. Handles `deskwidgets://install/<id>/<version>` URLs.
-- **`PluginApi.cs`** — the public API surface that community widgets compile against (API v1):
-  `WidgetWindow`, `Section`, `PopupMenu`, `Http`. Treat as frozen; changing a public signature
-  breaks every installed widget.
+- **`PluginApi.cs`** — the public API surface that community widgets compile against (API v3):
+  this file plus `WidgetWindow`, `CardWidget`, `Section`, `PopupMenu`, `InputDialog`, `Http`,
+  `CalEvent`, `Ics`, `MediaSession`, `F1`, `F1LiveFeed`. Treat as frozen; changing a public
+  signature breaks every installed widget. **Adding** to it bumps `PluginApi.Version`, and the
+  widget that uses the addition declares that `api_version` when it is published — otherwise an
+  older app passes the check in `Community.Confirm` and the person sees a compiler error instead
+  of "needs a newer Desk Widgets".
 - **`DesktopBackdrop.cs`** — keeps one 1/12-scale copy of the wallpaper; vibrant widgets sample
   a piece of it. Rebuilds asynchronously off the UI thread when the wallpaper changes.
 - **`Theme.cs`** — all colors, fonts and shapes for the app's own UI (library, dialogs, menus).
