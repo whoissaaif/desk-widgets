@@ -7,5 +7,7 @@ export const RELEASES_URL = "https://github.com/whoissaaif/desk-widgets/releases
 // Starts the download of the newest release's exe; every release must attach a file with this name.
 export const DOWNLOAD_URL = RELEASES_URL + "/download/DeskWidgets.exe";
 export const REPO_URL = "https://github.com/whoissaaif/desk-widgets";
-// The Store listing. 9PB80NCX898V is the product id Partner Center assigned.
-export const STORE_URL = "https://apps.microsoft.com/detail/9PB80NCX898V";
+// The Store listing: product id 9PML42WDP84Z, published as "DeskWidgets" by Saiff. A different
+// app holds the name "Desk Widgets" with the space, which is why that one was unavailable to
+// reserve -- do not search the Store by name to find this link, the other app matches it.
+export const STORE_URL = "https://apps.microsoft.com/detail/9PML42WDP84Z";
