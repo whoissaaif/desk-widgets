@@ -1,0 +1,97 @@
+# Builds the three release assets and attaches them to the release, so nobody assembles a release
+# by hand. CLAUDE.md says every release carries DeskWidgets.exe, DeskWidgets-Setup.exe,
+# DeskWidgets.msix and the source zip GitHub adds itself; this is what enforces it.
+#
+# The intended flow: create the release as a DRAFT with notes, let this fill it in, then publish.
+# "created" fires for a draft, "published" covers a release made in one go, and the uploads use
+# --clobber so a re-run just replaces the files.
+name: Release
+
+on:
+  release:
+    types: [created, published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and attach to, e.g. v1.8.8"
+        required: true
+
+jobs:
+  assets:
+    name: Build and attach release assets
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Work out the tag and version
+        id: v
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') { '${{ github.event.inputs.tag }}' } else { '${{ github.event.release.tag_name }}' }
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') { throw "Tag '$tag' is not of the form v1.8.8 (CLAUDE.md: three parts)." }
+          "tag=$tag"                      | Out-File $env:GITHUB_OUTPUT -Append
+          "version=$($tag.Substring(1))"  | Out-File $env:GITHUB_OUTPUT -Append
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.v.outputs.tag }}
+
+      # The tag and the three files that declare the version must say the same thing. They have
+      # drifted before, and a package whose version does not match its tag is confusing forever.
+      - name: Check the version matches the tag
+        shell: pwsh
+        run: .\tools\set-version.ps1 ${{ steps.v.outputs.version }} -Check
+
+      - name: Build the app
+        shell: cmd
+        run: build.bat
+
+      - name: Build the MSIX
+        shell: pwsh
+        run: |
+          # The runner's SDK is not the version build-msix.ps1 defaults to, so use the newest there.
+          $root = "C:\Program Files (x86)\Windows Kits\10\bin"
+          $sdk = Get-ChildItem $root -Directory |
+                 Where-Object { $_.Name -match '^10\.' -and (Test-Path (Join-Path $_.FullName 'x64\makeappx.exe')) } |
+                 Sort-Object { [version]$_.Name } | Select-Object -Last 1
+          if (-not $sdk) { throw "No Windows SDK with makeappx.exe found under $root" }
+          Write-Host "Using SDK $($sdk.Name)"
+          .\packaging\build-msix.ps1 -SdkVersion $sdk.Name
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress | Out-Null
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found at $iscc after install" }
+          & $iscc packaging\installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+
+      # CLAUDE.md: check the identity inside the package. Every build is about the same size, so a
+      # package built from the wrong manifest is otherwise indistinguishable.
+      - name: Check the package identity
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path "bin\DeskWidgets.msix"))
+          $reader = New-Object IO.StreamReader($zip.GetEntry("AppxManifest.xml").Open())
+          $xml = [xml]$reader.ReadToEnd(); $reader.Close(); $zip.Dispose()
+          $name = $xml.Package.Identity.Name
+          $ver  = $xml.Package.Identity.Version
+          $disp = $xml.Package.Properties.DisplayName
+          Write-Host "Identity: $name  Version: $ver  DisplayName: $disp"
+          if ($name -ne 'Saiff.DeskWidgets') { throw "Wrong identity '$name' - a test manifest must never reach a release." }
+          if ($ver  -ne '${{ steps.v.outputs.version }}.0') { throw "Package says $ver, tag says ${{ steps.v.outputs.version }}.0" }
+          if ($disp -ne 'DeskWidgets')       { throw "DisplayName '$disp' is not the name reserved in Partner Center." }
+
+      - name: Attach to the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          foreach ($f in 'bin\DeskWidgets.exe', 'bin\DeskWidgets-Setup.exe', 'bin\DeskWidgets.msix') {
+            if (-not (Test-Path $f)) { throw "$f was not built" }
+          }
+          gh release upload ${{ steps.v.outputs.tag }} `
+            bin\DeskWidgets.exe bin\DeskWidgets-Setup.exe bin\DeskWidgets.msix --clobber
