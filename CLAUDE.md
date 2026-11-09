@@ -32,12 +32,13 @@ Every GitHub release carries all four of these, built from the same commit:
 `DeskWidgets.exe` must keep that exact name: the website's Download button is
 `releases/latest/download/DeskWidgets.exe` (`docs/config.js`), and renaming the asset breaks it.
 
-**One version everywhere.** The tag is the MSIX version with a `v` in front, four parts, e.g.
-`v1.8.6.0`. The Store requires the last part to be `0` and each uploaded package to be higher than
-the last. The same version is declared in three files and they must agree — they have silently
+**One version everywhere.** The tag is three parts with a `v` in front, e.g. `v1.8.6`, matching
+every release before it. The MSIX version is that number plus a trailing `.0` (`1.8.6.0`): the
+Store requires four parts with the last one `0`, and each uploaded package must be higher than the
+last. The same version is declared in three files and they must agree — they have silently
 drifted before:
 
-- `packaging\AppxManifest.xml` — four parts (`1.8.6.0`)
+- `packaging\AppxManifest.xml` — the tag's number plus `.0` (`1.8.6.0`)
 - `packaging\installer.iss` — `MyAppVersion`
 - `src\AppUpdater.cs` — `AppVersion`
 
