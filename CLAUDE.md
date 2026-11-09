@@ -18,6 +18,36 @@ build fails on the output file, not on a compile error — kill the process firs
 For the website, serve `docs/` locally (e.g. `python -m http.server -d docs`) and check both
 light and dark themes.
 
+## Releases
+
+Every GitHub release carries all four of these, built from the same commit:
+
+| Asset | Built by |
+|---|---|
+| `DeskWidgets.exe` | `build.bat` |
+| `DeskWidgets-Setup.exe` | Inno Setup on `packaging\installer.iss` (outputs to `bin\`) |
+| `DeskWidgets.msix` | `packaging\build-msix.ps1` |
+| Source code (zip) | attached by GitHub automatically |
+
+`DeskWidgets.exe` must keep that exact name: the website's Download button is
+`releases/latest/download/DeskWidgets.exe` (`docs/config.js`), and renaming the asset breaks it.
+
+**One version everywhere.** The tag is the MSIX version with a `v` in front, four parts, e.g.
+`v1.8.6.0`. The Store requires the last part to be `0` and each uploaded package to be higher than
+the last. The same version is declared in three files and they must agree — they have silently
+drifted before:
+
+- `packaging\AppxManifest.xml` — four parts (`1.8.6.0`)
+- `packaging\installer.iss` — `MyAppVersion`
+- `src\AppUpdater.cs` — `AppVersion`
+
+Before uploading any package to Partner Center, check the identity inside it. Every build is about
+the same size, so a test build and a real one are indistinguishable by name or size:
+
+```
+python -c "import zipfile,re; m=zipfile.ZipFile('bin/DeskWidgets.msix').read('AppxManifest.xml').decode('utf-8'); print(re.search(r'<Identity[^>]*>',m).group(0))"
+```
+
 Pre-commit hook: `git config core.hooksPath .githooks` (runs `tools\check-hidden.ps1` to reject
 characters that make code read differently from how it compiles).
 
