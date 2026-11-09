@@ -20,6 +20,11 @@ light and dark themes.
 
 ## Releases
 
+Cutting one: `tools\set-version.ps1 1.8.8`, commit, merge, then create the release as a **draft**
+with its notes. `.github/workflows/release.yml` builds the assets and attaches them; then publish
+it. The workflow refuses a tag that does not match the version in the files, and a package whose
+identity or version is wrong, so a hand-built or test package cannot reach a release.
+
 Every GitHub release carries all four of these, built from the same commit:
 
 | Asset | Built by |
@@ -42,8 +47,10 @@ drifted before:
 - `packaging\installer.iss` — `MyAppVersion`
 - `src\AppUpdater.cs` — `AppVersion`
 
-Before uploading any package to Partner Center, check the identity inside it. Every build is about
-the same size, so a test build and a real one are indistinguishable by name or size:
+The Store submission stays manual on purpose: download the msix from the release and upload it in
+Partner Center. Before uploading any package there, check the identity inside it — every build is
+about the same size, so a test build and a real one are indistinguishable by name or size (the
+release workflow runs this check too):
 
 ```
 python -c "import zipfile,re; m=zipfile.ZipFile('bin/DeskWidgets.msix').read('AppxManifest.xml').decode('utf-8'); print(re.search(r'<Identity[^>]*>',m).group(0))"
