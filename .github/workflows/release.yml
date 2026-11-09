@@ -28,7 +28,7 @@ jobs:
         id: v
         shell: pwsh
         run: |
-          $tag = if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') { '${{ inputs.tag }}' } else { '${{ github.event.release.tag_name }}' }
+          $tag = if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') { '${{ github.event.inputs.tag }}' } else { '${{ github.event.release.tag_name }}' }
           if ($tag -notmatch '^v\d+\.\d+\.\d+$') { throw "Tag '$tag' is not of the form v1.8.8 (CLAUDE.md: three parts)." }
           "tag=$tag"                      | Out-File $env:GITHUB_OUTPUT -Append
           "version=$($tag.Substring(1))"  | Out-File $env:GITHUB_OUTPUT -Append
