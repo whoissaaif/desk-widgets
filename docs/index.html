@@ -214,11 +214,16 @@
     <section class="band b band-dl">
       <div class="band-in">
         <h2 class="t-band">Get Desk Widgets.</h2>
-        <p class="band-sub">One file. Run it, and it&rsquo;s in your Start menu.</p>
+        <p class="band-sub">One file. Run it, and it&rsquo;s in your Start menu. From the Store it
+        updates itself.</p>
         <div class="actions center">
           <a class="button download" href="#">
             <svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 11l4.5 4.5L16.5 11M5 20h14"/></svg>
             Download for Windows
+          </a>
+          <a class="button secondary" id="store">
+            <svg class="ico" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>
+            Get it from the Microsoft Store
           </a>
           <a class="more" id="source">Source on GitHub</a>
         </div>
@@ -230,12 +235,13 @@
   </main>
 
   <script type="module">
-    import { nav, DOWNLOAD_URL, REPO_URL } from "./assets/site.js";
+    import { nav, DOWNLOAD_URL, REPO_URL, STORE_URL } from "./assets/site.js";
     import { focusTimer } from "./assets/widgets.js";
     import { heroIntro } from "./assets/hero-intro.js";
     nav("home");
     for (const a of document.querySelectorAll(".download")) a.href = DOWNLOAD_URL;
     document.getElementById("source").href = REPO_URL;
+    document.getElementById("store").href = STORE_URL;
 
     // The carousel is mounted by the intro: straight away for a repeat visit, reduced motion or a
     // phone, otherwise once the clones have finished wrapping into its shape.

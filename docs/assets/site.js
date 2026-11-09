@@ -1,9 +1,9 @@
 // Shared helpers for every page. Everything people type or upload reaches the page through
 // textContent (el()), never innerHTML, and ids/previews are re-validated here even though the
 // database already checks them.
-import { SUPABASE_URL, SUPABASE_ANON_KEY, RELEASES_URL, DOWNLOAD_URL, REPO_URL } from "../config.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, RELEASES_URL, DOWNLOAD_URL, REPO_URL, STORE_URL } from "../config.js";
 
-export { RELEASES_URL, DOWNLOAD_URL, REPO_URL };
+export { RELEASES_URL, DOWNLOAD_URL, REPO_URL, STORE_URL };
 
 // The same categories as the app (WidgetRegistry.Categories) and the database check.
 export const CATEGORIES = [
@@ -135,7 +135,8 @@ function footer() {
         "Desk Widgets is free and open source. Community widgets are reviewed by a person before they appear here."),
       el("div", { class: "f-cols" },
         column("Widgets", [["explore.html", "Explore"], ["./#catalog", "Built-in widgets"], ["upload.html", "Upload yours"]]),
-        column("App", [[DOWNLOAD_URL, "Download"], [RELEASES_URL, "What's new"], ["privacy.html", "Privacy"]]),
+        column("App", [[DOWNLOAD_URL, "Download"], [STORE_URL, "Microsoft Store"],
+          [RELEASES_URL, "What's new"], ["privacy.html", "Privacy"]]),
         column("Open source", [[REPO_URL, "Source code"], [REPO_URL + "/issues", "Report an issue"],
           [REPO_URL + "/blob/main/samples/HelloWidget.cs", "Write a widget in C#"]])),
       el("p", { class: "f-bottom" },

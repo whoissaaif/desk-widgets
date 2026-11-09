@@ -7,3 +7,5 @@ export const RELEASES_URL = "https://github.com/whoissaaif/desk-widgets/releases
 // Starts the download of the newest release's exe; every release must attach a file with this name.
 export const DOWNLOAD_URL = RELEASES_URL + "/download/DeskWidgets.exe";
 export const REPO_URL = "https://github.com/whoissaaif/desk-widgets";
+// The Store listing. 9PB80NCX898V is the product id Partner Center assigned.
+export const STORE_URL = "https://apps.microsoft.com/detail/9PB80NCX898V";
