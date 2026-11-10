@@ -226,6 +226,33 @@ namespace DeskWidgets
             catch (Exception) { return null; }
         }
 
+
+        // ---- likes ----
+
+        // The widget ids this person has liked. The likes table shows you your own rows and
+        // nobody else's (server/schema.sql), so this is the whole answer, not a filtered one.
+        public static List<string> MyLikes()
+        {
+            if (!SignedIn) return new List<string>();
+            return Rest("GET", "likes?select=widget_id", null)
+                .Select(r => Str(r as Dictionary<string, object> ?? new Dictionary<string, object>(), "widget_id"))
+                .Where(Plugins.IsValidId).ToList();
+        }
+
+        // A like is one row keyed by (widget, person), so liking twice is a duplicate key rather
+        // than a second count, and unliking is that row going away. Both throw on failure; the
+        // caller decides what a failed like looks like on screen.
+        public static void Like(string widgetId)
+        {
+            Rest("POST", "likes", new Dictionary<string, object> { { "widget_id", widgetId }, { "user_id", userId } });
+        }
+
+        public static void Unlike(string widgetId)
+        {
+            Rest("DELETE", "likes?widget_id=eq." + Uri.EscapeDataString(widgetId) +
+                 "&user_id=eq." + Uri.EscapeDataString(userId ?? ""), null);
+        }
+
         // ---- uploading ----
 
         public sealed class Upload

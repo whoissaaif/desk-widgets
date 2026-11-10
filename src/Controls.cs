@@ -250,6 +250,10 @@ namespace DeskWidgets
                 Text = text ?? "", UseSystemPasswordChar = secret, BorderStyle = BorderStyle.None, Multiline = multiline,
                 BackColor = Theme.Field, ForeColor = Theme.Label, Font = Theme.Body
             };
+            Box.HandleCreated += delegate
+            {
+                if (placeholder != null) Native.SendMessageText(Box.Handle, Native.EM_SETCUEBANNER, (IntPtr)1, placeholder);
+            };
             Box.GotFocus += delegate { Invalidate(); };
             Box.LostFocus += delegate { Invalidate(); };
             Controls.Add(Box);
@@ -266,6 +270,18 @@ namespace DeskWidgets
             int px = WidgetWindow.Px(10), py = Box.Multiline ? WidgetWindow.Px(8) : (Height - Box.PreferredHeight) / 2;
             Box.SetBounds(px, py, Width - px * 2, Box.Multiline ? Height - py * 2 : Box.PreferredHeight);
         }
+
+        // Shown in grey while the box is empty. Windows draws it, so it is never real text.
+        public string Placeholder
+        {
+            set
+            {
+                placeholder = value;
+                if (Box.IsHandleCreated)
+                    Native.SendMessageText(Box.Handle, Native.EM_SETCUEBANNER, (IntPtr)1, placeholder);
+            }
+        }
+        string placeholder;
 
         protected override void OnClick(EventArgs e) { Box.Focus(); base.OnClick(e); }
 

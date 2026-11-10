@@ -759,6 +759,22 @@ text. One Primary per group.
   "author · category" and a Tinted button at the bottom right: **Get**, **Update** when a newer
   version than yours is out, **Add** when you have it. A widget you have shows a third line, a
   checkmark and "Installed" (or "Installed · v1" when an update is out), in secondary text.
+  Between the title and the grid sits one row: a rounded search field (§8.7) filling the width
+  with the placeholder “Search widgets”, and a Grey capsule at the right naming the current sort
+  with a ▾ — **Newest** (the default, the order the gallery returns), **Most Liked**, **Most
+  Installed**, **Name**. It opens the app’s own menu with a checkmark on the active one. The row
+  is hidden while Explore has nothing to narrow, and a search matching nothing shows the empty
+  state “No Matches”.
+- **Likes**: each Explore card carries one chip in the preview’s top-right corner, on the grey
+  fill. At rest it is a heart alone — red when you have liked it, secondary when not. The count
+  slides out to the heart’s left while the pointer is over the card, and for about a second and a
+  half after a tap; the heart itself never moves, so what you are aiming at stays put. Tapping
+  signs you in first if you need it. The count moves the moment you tap and goes back if the write
+  fails, so it never claims more than the gallery holds. Counts read 999, then 1k, 12k, 999k, 1M:
+  three digits and at most one letter, so the chip has a width it cannot exceed.
+  **Install counts are never drawn on a card.** They order the Most Installed sort and nothing
+  else: anyone with the public key can raise one, so showing it would publish a number the app
+  cannot stand behind.
 - **Installed**: "Install from File…" at the top right; first a grouped list of updates
   ("Moon Phase 2 is available", **Update**), then the cards, then a grouped list of turned-off
   widgets (**Try Again**). Show Source and Uninstall… (red, last) are on right-click.

@@ -483,9 +483,11 @@ namespace DeskWidgets
 
         // Writes, compiles and registers a version whose hash was already checked and that the person
         // confirmed. Replaces an installed version of the same widget.
-        public static void InstallChecked(PluginInfo p, byte[] source, string displayName)
+        // True once the widget is installed and registered. The gallery counts an install on that;
+        // installing from a file ignores it.
+        public static bool InstallChecked(PluginInfo p, byte[] source, string displayName)
         {
-            if (!IsValidId(p.Id) || p.Sha256 != Sha256(source)) return;
+            if (!IsValidId(p.Id) || p.Sha256 != Sha256(source)) return false;
             p.Dir = Path.Combine(Root, p.Id);
             PluginInfo old = Get(p.Id);
             bool sameFolder = old != null && old.Version == p.Version;
@@ -503,7 +505,7 @@ namespace DeskWidgets
                 if (!sameFolder) TryDelete(p.VersionDir);
                 if (old == null) TryDelete(p.Dir);
                 AlertDialog.Show(displayName + " wasn't installed.", error);
-                return;
+                return false;
             }
 
             // Swap in the new version: the old assembly stays in memory until restart (.NET can't unload).
@@ -519,6 +521,7 @@ namespace DeskWidgets
             installed[p.Id] = p;
             if (old != null) App.Current.OpenType(p.Id);
             WidgetRegistry.RaiseChanged();
+            return true;
         }
 
         static string Slug(string name)

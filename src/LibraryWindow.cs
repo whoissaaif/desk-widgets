@@ -29,6 +29,9 @@ namespace DeskWidgets
         readonly EmptyState noneInstalled, exploreState;
         readonly PillButton uploadButton;
         readonly List<ExploreCard> exploreCards = new List<ExploreCard>();
+        TextField exploreSearch;
+        PillButton exploreSort;
+        ExploreSort exploreSortBy = ExploreSort.Newest;
         readonly List<PluginRow> updates = new List<PluginRow>();
         bool exploreLoading;
         readonly List<Section> sections = new List<Section>();
@@ -71,6 +74,7 @@ namespace DeskWidgets
             content.Controls.Add(uploadButton);
             exploreState = new EmptyState("", "");
             content.Controls.Add(exploreState);
+            BuildExploreControls();
             BuildCards();
             content.Resize += delegate { LayoutContent(); };
 
@@ -277,14 +281,26 @@ namespace DeskWidgets
             foreach (var t in themeItems) t.Visible = settingsOpen;
             if (settingsOpen) y = LayoutSettings(pad, width, y);
 
-            foreach (var card in exploreCards) card.Visible = explore;
-            exploreState.Visible = explore && exploreCards.Count == 0;
+            // Search and sort sit between the title and the grid, and only on Explore. They stay
+            // hidden until there is a list to narrow.
+            bool exploreTools = explore && exploreCards.Count > 0;
+            exploreSearch.Visible = exploreTools;
+            exploreSort.Visible = exploreTools;
+            List<ExploreCard> shown = explore ? VisibleExploreCards() : new List<ExploreCard>();
+            foreach (var card in exploreCards) card.Visible = explore && shown.Contains(card);
+            if (exploreTools)
+            {
+                exploreSort.Location = new Point(pad + width - exploreSort.Width, y);
+                exploreSearch.SetBounds(pad, y, width - exploreSort.Width - gap, exploreSearch.Height);
+                y += Math.Max(exploreSearch.Height, exploreSort.Height) + Px(20);
+            }
+            exploreState.Visible = explore && shown.Count == 0;
             if (exploreState.Visible)
             {
                 exploreState.SetBounds(pad, y + Px(80), width, exploreState.Height);
                 y += Px(80) + exploreState.Height;
             }
-            if (explore) y = Grid(exploreCards, pad, width, y) + Px(32);
+            if (explore) y = Grid(shown, pad, width, y) + Px(32);
 
             foreach (var sec in sections)
             {
@@ -485,6 +501,79 @@ namespace DeskWidgets
             return y;
         }
 
+        // ---- Explore: search and sort ----
+
+        // Newest is the order the gallery already returns (reviewed_at desc), so it costs nothing
+        // and stays the default. The others rearrange the list the app is already holding: all of
+        // Explore arrives in one query, so there is nothing to ask the server for and no paging.
+        enum ExploreSort { Newest, Liked, Installed, Name }
+
+        static string SortName(ExploreSort s)
+        {
+            switch (s)
+            {
+                case ExploreSort.Liked: return "Most Liked";
+                case ExploreSort.Installed: return "Most Installed";
+                case ExploreSort.Name: return "Name";
+                default: return "Newest";
+            }
+        }
+
+        void BuildExploreControls()
+        {
+            exploreSearch = new TextField("", false) { Placeholder = "Search widgets" };
+            exploreSearch.Box.TextChanged += delegate { LayoutContent(); };
+            content.Controls.Add(exploreSearch);
+
+            // Sized from its longest label so choosing a shorter one never shifts the row. The
+            // chevron is U+25BE and not a Fluent icon glyph: this button paints with Theme.Button,
+            // the text font, which has no icon glyphs and would draw a blank box instead.
+            exploreSort = new PillButton(SortName(ExploreSort.Installed) + "  ▾", ButtonStyle.Grey);
+            exploreSort.Text = SortName(exploreSortBy) + "  ▾";
+            exploreSort.Click += delegate { ShowSortMenu(); };
+            content.Controls.Add(exploreSort);
+        }
+
+        void ShowSortMenu()
+        {
+            var menu = new PopupMenu();
+            foreach (ExploreSort option in new[] { ExploreSort.Newest, ExploreSort.Liked, ExploreSort.Installed, ExploreSort.Name })
+            {
+                ExploreSort chosen = option; // captured per item, not once for the whole loop
+                menu.AddChoice(SortName(chosen), exploreSortBy == chosen, delegate
+                {
+                    exploreSortBy = chosen;
+                    exploreSort.Text = SortName(chosen) + "  ▾";
+                    exploreSort.Invalidate();
+                    LayoutContent();
+                });
+            }
+            menu.Show(exploreSort.PointToScreen(new Point(0, exploreSort.Height + Px(4))));
+        }
+
+        // The cards to show, in order: search narrows, sort arranges. Ties fall back to the name so
+        // a gallery where nothing has been liked yet still has a stable, readable order.
+        List<ExploreCard> VisibleExploreCards()
+        {
+            string q = exploreSearch.Box.Text.Trim();
+            IEnumerable<ExploreCard> cards = exploreCards.Where(c => c.Matches(q));
+            switch (exploreSortBy)
+            {
+                case ExploreSort.Liked:
+                    cards = cards.OrderByDescending(c => c.Listing.Likes)
+                                 .ThenBy(c => c.Listing.Name, StringComparer.CurrentCultureIgnoreCase);
+                    break;
+                case ExploreSort.Installed:
+                    cards = cards.OrderByDescending(c => c.Listing.Installs)
+                                 .ThenBy(c => c.Listing.Name, StringComparer.CurrentCultureIgnoreCase);
+                    break;
+                case ExploreSort.Name:
+                    cards = cards.OrderBy(c => c.Listing.Name, StringComparer.CurrentCultureIgnoreCase);
+                    break;
+            }
+            return cards.ToList();
+        }
+
         // ---- Explore ----
 
         void LoadExplore()
@@ -501,6 +590,7 @@ namespace DeskWidgets
             {
                 List<Community.Listing> list = null;
                 var previews = new Dictionary<Community.Listing, Bitmap>();
+                var liked = new List<string>();
                 try
                 {
                     list = Community.Explore();
@@ -508,6 +598,10 @@ namespace DeskWidgets
                     Community.PrunePreviews(list);
                 }
                 catch (Exception) { list = null; }
+                // Which of them you have liked, so the hearts start filled. Signed out, or if this
+                // call fails, every heart is simply empty: it never costs you the list itself.
+                try { liked = Account.MyLikes(); }
+                catch (Exception) { }
                 App.RunOnUi(delegate
                 {
                     exploreLoading = false;
@@ -523,9 +617,10 @@ namespace DeskWidgets
                         foreach (var old in exploreCards) { content.Controls.Remove(old); old.Dispose(); }
                         exploreCards.Clear();
                         if (list.Count == 0) exploreState.Set("Nothing Here Yet", "Reviewed community widgets will appear here.");
+                        else exploreState.Set("No Matches", "No widget here matches what you typed.");
                         foreach (var l in list)
                         {
-                            var c = new ExploreCard(l, previews[l]);
+                            var c = new ExploreCard(l, previews[l]) { Liked = liked.Contains(l.Id) };
                             exploreCards.Add(c);
                             content.Controls.Add(c);
                         }
@@ -1000,6 +1095,140 @@ namespace DeskWidgets
 
         PluginInfo Installed { get { return Plugins.Get(listing.Id); } }
 
+        public Community.Listing Listing { get { return listing; } }
+        public bool Liked;
+
+        // What the search box narrows on: everything the card itself shows. An empty query matches.
+        public bool Matches(string query)
+        {
+            if (string.IsNullOrEmpty(query)) return true;
+            string category = WidgetRegistry.Categories.Where(c => c.Id == listing.Category)
+                                            .Select(c => c.Name).FirstOrDefault() ?? "";
+            return Has(listing.Name, query) || Has(listing.Author, query)
+                || Has(listing.Description, query) || Has(category, query);
+        }
+
+        static bool Has(string haystack, string needle)
+        {
+            return haystack != null && haystack.IndexOf(needle, StringComparison.CurrentCultureIgnoreCase) >= 0;
+        }
+
+        // The chip has a band of its own along the top of the card: the heart you tap and the count
+        // it stands for. The preview starts below it rather than under it, so artwork that fills its
+        // box is never covered.
+        static int ChipBand { get { return Px(24) + Px(6); } }
+
+        // Three digits and at most one letter, so the label never outgrows the chip: 999, then 1k,
+        // 12k, 999k, 1M. Truncating rather than rounding keeps it honest -- 1999 reads 1k, never 2k.
+        static string Compact(int n)
+        {
+            if (n < 1000) return n.ToString(System.Globalization.CultureInfo.CurrentCulture);
+            if (n < 1000000) return (n / 1000).ToString(System.Globalization.CultureInfo.CurrentCulture) + "k";
+            if (n < 1000000000) return (n / 1000000).ToString(System.Globalization.CultureInfo.CurrentCulture) + "M";
+            return (n / 1000000000).ToString(System.Globalization.CultureInfo.CurrentCulture) + "B";
+        }
+
+        string LikeText { get { return Compact(listing.Likes); } }
+
+        const int ChipGap = 5, ChipSide = 9, ChipIcon = 16;
+
+        // Measured the way it is drawn: NoPadding, or the reported width carries padding the paint
+        // never uses and the chip ends up with dead space at its right. The proposed size is large
+        // but finite -- int.MaxValue makes GDI return an inflated width.
+        static int TextWidth(string text, Font font)
+        {
+            return TextRenderer.MeasureText(text, font, new Size(1000, 100), TextFormatFlags.NoPadding).Width;
+        }
+
+        // At rest the chip is just a heart. The count slides out to its left while the pointer is
+        // over the card, and after a tap: 0 is heart only, 1 is the count fully out. Hover is what
+        // makes Most Liked legible -- an order you cannot see the basis of is not much of an order.
+        float reveal;
+        Anim revealAnim, holdAnim;
+        bool hovering;
+
+        // The heart's own box, and the only thing that takes the click. Fixed whatever the count is
+        // doing, so what you are pointing at never slides out from under the cursor mid-animation.
+        Rectangle HeartRect
+        {
+            get
+            {
+                // A fixed box for the heart rather than its advance width: a glyph carries its own
+                // side bearings, and the heart's trailing one is half its ink again, which reads as
+                // a hole beside it. Centred in the box, it lands where it should whatever the icon
+                // font does.
+                int w = Px(ChipSide) + Px(ChipIcon) + Px(ChipSide);
+                return new Rectangle(Width - Px(12) - w, Px(12), w, Px(24));
+            }
+        }
+
+        // The capsule behind it, which grows leftwards as the count comes out.
+        Rectangle ChipRect(float r)
+        {
+            Rectangle h = HeartRect;
+            int grow = (int)Math.Round(r * (Px(ChipGap) + TextWidth(LikeText, Theme.Footnote)));
+            return new Rectangle(h.X - grow, h.Y, h.Width + grow, h.Height);
+        }
+
+        // Moves the count towards open or shut from wherever it currently is, so a pointer that
+        // crosses the card quickly never jumps -- it turns round from where it had got to.
+        void SetReveal(float target, int ms)
+        {
+            if (revealAnim != null) { revealAnim.Cancel(); revealAnim = null; }
+            float from = reveal;
+            if (Math.Abs(from - target) < 0.001f) return;
+            revealAnim = Anim.Run(0f, 1f, ms, delegate(float t)
+            {
+                reveal = from + (target - from) * t;
+                if (!IsDisposed) Invalidate();
+            }, delegate
+            {
+                revealAnim = null;
+                reveal = target;
+                if (!IsDisposed) Invalidate();
+            });
+        }
+
+        // A tap holds the count open for a moment even once the pointer has gone, so the number you
+        // just changed is readable whether or not you stayed on the card. The hold is an animation
+        // with nothing to animate: it is the one timer this code already has, so it owns no other.
+        void FlashCount()
+        {
+            SetReveal(1f, 140);
+            if (holdAnim != null) holdAnim.Cancel();
+            holdAnim = Anim.Run(0f, 1f, 1600, delegate { }, delegate
+            {
+                holdAnim = null;
+                if (!IsDisposed && !hovering) SetReveal(0f, 160);
+            });
+        }
+
+        string Glyph { get { return Liked ? "" : ""; } }
+
+        // Liking is one row in the gallery, so the screen can move first and be put back if the
+        // write fails: the count shown must never claim more than the database holds.
+        void ToggleLike()
+        {
+            if (!Account.SignedIn) { App.SignIn(null); return; }
+            bool want = !Liked;
+            Liked = want;
+            listing.Likes = Math.Max(0, listing.Likes + (want ? 1 : -1));
+            FlashCount();
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                bool failed = false;
+                try { if (want) Account.Like(listing.Id); else Account.Unlike(listing.Id); }
+                catch (Exception) { failed = true; }
+                App.RunOnUi(delegate
+                {
+                    if (IsDisposed || !failed) return;
+                    Liked = !want;
+                    listing.Likes = Math.Max(0, listing.Likes + (want ? -1 : 1));
+                    Invalidate();
+                });
+            });
+        }
+
         public void RefreshState()
         {
             PluginInfo p = Installed;
@@ -1047,17 +1276,41 @@ namespace DeskWidgets
         {
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             int pad = Px(12), box = Px(176) - pad * 2;
+            // Same bottom edge as before, so the name and the rows under it do not move: the chip
+            // band comes out of the top of the preview, not out of the text below it.
+            int imgTop = pad + ChipBand, imgH = box - ChipBand;
             Theme.FillRound(g, BackColor, new RectangleF(0, 0, Width - 1, Height - 1), Px(Theme.RadiusCard));
             var flags = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding;
             if (preview != null)
             {
-                float scale = Math.Min(box / (float)preview.Width, box / (float)preview.Height);
+                float scale = Math.Min(box / (float)preview.Width, imgH / (float)preview.Height);
                 int pw = (int)(preview.Width * scale), ph = (int)(preview.Height * scale);
-                g.DrawImage(preview, new Rectangle((Width - pw) / 2, pad + (box - ph) / 2, pw, ph));
+                g.DrawImage(preview, new Rectangle((Width - pw) / 2, imgTop + (imgH - ph) / 2, pw, ph));
             }
             else
-                TextRenderer.DrawText(g, "No Preview", Theme.Footnote, new Rectangle(pad, pad, box, box), Theme.Label2, BackColor,
+                TextRenderer.DrawText(g, "No Preview", Theme.Footnote, new Rectangle(pad, imgTop, box, imgH), Theme.Label2, BackColor,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+
+            // The install count is deliberately not drawn: anyone with the public key can raise it,
+            // so it orders the Most Installed sort without being published as a figure on a card.
+            // One translucent fill, the same grey a quiet capsule button uses. Both labels are drawn
+            // with the overload that takes no back colour: the one that takes it has GDI paint a
+            // solid rectangle first, which showed as a dark box around the glyph and the number.
+            Rectangle heart = HeartRect, chip = ChipRect(reveal);
+            Theme.FillRound(g, Theme.Fill, new RectangleF(chip.X, chip.Y, chip.Width, chip.Height), chip.Height / 2f);
+            var mid = TextFormatFlags.NoPadding | TextFormatFlags.VerticalCenter;
+            // The count rides the capsule's left edge, and its box stops short of the heart. GDI
+            // clips text to the box it is given, so the number is uncovered as the capsule opens
+            // instead of appearing all at once, and it can never spill over the heart.
+            int glyphX = heart.X + Px(ChipSide);
+            int numberX = chip.X + Px(ChipSide);
+            int numberW = Math.Max(0, glyphX - Px(ChipGap) - numberX);
+            if (numberW > 0)
+                TextRenderer.DrawText(g, LikeText, Theme.Footnote,
+                    new Rectangle(numberX, chip.Y, numberW, chip.Height), Theme.Label2, mid);
+            TextRenderer.DrawText(g, Glyph, Theme.Icons,
+                new Rectangle(glyphX, chip.Y, Px(ChipIcon), chip.Height),
+                Liked ? Theme.Destructive : Theme.Label2, mid | TextFormatFlags.HorizontalCenter);
 
             int textTop = pad + box + Px(8), lineW = Width - pad * 2;
             TextRenderer.DrawText(g, listing.Name, Theme.BodyEmphasized, new Rectangle(pad, textTop, lineW, Px(20)), Theme.Label, BackColor, flags);
@@ -1076,16 +1329,38 @@ namespace DeskWidgets
             }
         }
 
-        protected override void OnMouseEnter(EventArgs e) { AnimateHover(true); base.OnMouseEnter(e); }
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            Cursor want = HeartRect.Contains(e.Location) ? Cursors.Hand : Cursors.Default;
+            if (Cursor != want) Cursor = want;
+        }
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            hovering = true;
+            SetReveal(1f, 140);
+            AnimateHover(true);
+            base.OnMouseEnter(e);
+        }
+
         protected override void OnMouseLeave(EventArgs e)
         {
             if (ClientRectangle.Contains(PointToClient(Cursor.Position))) return; // moved onto the button
-            AnimateHover(false); base.OnMouseLeave(e);
+            hovering = false;
+            if (holdAnim == null) SetReveal(0f, 160); // a tap just now keeps it open a moment longer
+            AnimateHover(false);
+            base.OnMouseLeave(e);
         }
 
         protected override void OnMouseUp(MouseEventArgs e)
         {
             base.OnMouseUp(e);
+            if (e.Button == MouseButtons.Left)
+            {
+                if (HeartRect.Contains(e.Location)) ToggleLike();
+                return;
+            }
             if (e.Button != MouseButtons.Right) return;
             var menu = new PopupMenu();
             PluginInfo p = Installed;
@@ -1107,7 +1382,14 @@ namespace DeskWidgets
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing && preview != null) preview.Dispose();
+            if (disposing)
+            {
+                if (preview != null) preview.Dispose();
+                // Stop the count animation: its tick holds this card, and the list is rebuilt on
+                // every visit to Explore.
+                if (revealAnim != null) { revealAnim.Cancel(); revealAnim = null; }
+                if (holdAnim != null) { holdAnim.Cancel(); holdAnim = null; }
+            }
             base.Dispose(disposing);
         }
     }

@@ -222,5 +222,59 @@ r = await as('alice', `insert into public.versions (widget_id, name, category, s
   values ('u.alice.categories', 'Category', 'unknown', 'class Category {}')`);
 check('unknown category is still rejected', !ok(r) && /versions_category_check/.test(r.error), r.error);
 
+// ---------------------------------------------------------------- likes
+// u.alice.moon is approved by now; u.alice.categories has only pending versions.
+r = await as('anon', `insert into public.likes (widget_id, user_id) values ('u.alice.moon', $1)`, [U.alice]);
+check('anon cannot like', !ok(r), r.error);
+r = await as('eve', `insert into public.likes (widget_id, user_id) values ('u.alice.moon', $1)`, [U.eve]);
+check('account without profile cannot like', !ok(r), r.error);
+check('alice likes a widget', ok(await as('alice',
+  `insert into public.likes (widget_id, user_id) values ('u.alice.moon', $1)`, [U.alice])));
+r = await as('alice', `insert into public.likes (widget_id, user_id) values ('u.alice.moon', $1)`, [U.alice]);
+check('the same person cannot like twice', !ok(r), r.error);
+r = await as('bob', `insert into public.likes (widget_id, user_id) values ('u.alice.moon', $1)`, [U.alice]);
+check('bob cannot like as alice', !ok(r), r.error);
+check('bob likes it too', ok(await as('bob',
+  `insert into public.likes (widget_id, user_id) values ('u.alice.moon', $1)`, [U.bob])));
+
+r = await as('anon', `select * from public.likes`);
+check('anon cannot read likes at all', !ok(r), r.error);
+r = await as('alice', `select widget_id, user_id from public.likes`);
+check('alice reads only her own like', ok(r) && r.rows.length === 1 && r.rows[0].user_id === U.alice,
+  JSON.stringify(r.rows || r.error));
+
+// The delete is allowed to run; the policy just leaves it nothing to match, so the proof that
+// it did nothing is the count afterwards, not the statement's own success.
+r = await as('bob', `delete from public.likes where user_id = $1`, [U.alice]);
+check("bob's delete of alice's like matches no row", ok(r) && r.rows.length === 0, JSON.stringify(r.rows || r.error));
+r = await as('anon', `select likes from public.explore where id = 'u.alice.moon'`);
+check("...so both likes are still counted", ok(r) && Number(r.rows[0].likes) === 2, JSON.stringify(r.rows || r.error));
+r = await as('alice', `update public.likes set widget_id = 'u.alice.categories' where user_id = $1`, [U.alice]);
+check('a like cannot be moved to another widget', !ok(r), r.error);
+check('alice takes her like back', ok(await as('alice', `delete from public.likes where user_id = $1`, [U.alice])));
+r = await as('anon', `select likes from public.explore where id = 'u.alice.moon'`);
+check('explore count drops to one', ok(r) && Number(r.rows[0].likes) === 1, JSON.stringify(r.rows || r.error));
+
+// ---------------------------------------------------------------- install counting
+r = await as('anon', `select installs from public.explore where id = 'u.alice.moon'`);
+check('installs start at zero', ok(r) && Number(r.rows[0].installs) === 0, JSON.stringify(r.rows || r.error));
+r = await as('anon', `update public.widgets set installs = 9999`);
+check('nobody can write installs directly', !ok(r), r.error);
+check('anon records an install', ok(await as('anon', `select public.record_install('u.alice.moon')`)));
+check('signed-in records an install', ok(await as('bob', `select public.record_install('u.alice.moon')`)));
+r = await as('anon', `select installs from public.explore where id = 'u.alice.moon'`);
+check('each call counts exactly once', ok(r) && Number(r.rows[0].installs) === 2, JSON.stringify(r.rows || r.error));
+r = await as('anon', `select public.record_install('u.alice.categories')`);
+check('a widget with no approved version is not counted', ok(r), r.error);
+r = await as('anon', `select installs from public.widgets where id = 'u.alice.categories'`);
+check('...and its counter stays at zero', ok(r) && (r.rows.length === 0 || Number(r.rows[0].installs) === 0),
+  JSON.stringify(r.rows || r.error));
+check('an unknown widget is ignored, not an error', ok(await as('anon', `select public.record_install('u.nobody.nothing')`)));
+
+r = await as('anon', `select * from public.explore where id = 'u.alice.moon'`);
+check('explore still hides source while carrying counts', ok(r) && !('source' in r.rows[0]) && 'likes' in r.rows[0] && 'installs' in r.rows[0],
+  JSON.stringify(r.error || Object.keys(r.rows[0])));
+
+
 console.log(fails ? fails + ' FAILED' : 'all passed');
 process.exit(fails ? 1 : 0);

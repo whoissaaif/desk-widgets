@@ -73,6 +73,21 @@ alter table public.versions drop constraint if exists versions_category_check;
 alter table public.versions add constraint versions_category_check
   check (category in ('clocks', 'productivity', 'weather', 'system', 'media', 'developer', 'sports', 'finance', 'news', 'utility', 'social', 'health', 'travel', 'games'));
 
+-- One row per person per widget: the primary key is what makes a like a like and not a counter,
+-- so a double tap can never count twice and no app-side guard is needed. Unlike deletes the row.
+create table if not exists public.likes (
+  widget_id  text        not null references public.widgets (id) on delete cascade,
+  user_id    uuid        not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (widget_id, user_id)
+);
+
+-- How many times the gallery served this widget to be installed. Written only by record_install(),
+-- never by a client: the table grant below hands out no UPDATE. Anyone may install without an
+-- account, so this number is inflatable by anyone willing to call the function in a loop -- it is
+-- a ranking signal, not a statistic to publish.
+alter table public.widgets add column if not exists installs bigint not null default 0;
+
 -- ---------------------------------------------------------------- source must read as it compiles
 -- Characters that make code look different from what the C# compiler sees ("Trojan Source",
 -- CVE-2021-42574): line breaks only the compiler honors (lone CR, U+0085, U+2028, U+2029),
@@ -135,6 +150,7 @@ alter table public.admins   enable row level security;
 alter table public.widgets  enable row level security;
 alter table public.versions enable row level security;
 alter table public.access_requests enable row level security;
+alter table public.likes    enable row level security;
 
 drop policy if exists profiles_read on public.profiles;
 create policy profiles_read on public.profiles for select to authenticated
@@ -156,6 +172,23 @@ create policy access_requests_read on public.access_requests for select to authe
 
 drop policy if exists admins_read on public.admins;
 create policy admins_read on public.admins for select to authenticated
+  using (user_id = auth.uid());
+
+-- A like is only ever yours to add or take back: the check pins user_id to the caller, so nobody
+-- can like or unlike as someone else. Reading is yours alone too -- the app only needs to know
+-- which widgets you have liked, to fill the hearts. The public count comes from the explore view,
+-- which runs as its owner and so counts rows no one is allowed to read one by one: without that,
+-- likes.user_id joined to the authors view would say who liked what, for anyone who asked.
+drop policy if exists likes_read on public.likes;
+create policy likes_read on public.likes for select to authenticated
+  using (user_id = auth.uid());
+
+drop policy if exists likes_insert on public.likes;
+create policy likes_insert on public.likes for insert to authenticated
+  with check (user_id = auth.uid());
+
+drop policy if exists likes_delete on public.likes;
+create policy likes_delete on public.likes for delete to authenticated
   using (user_id = auth.uid());
 
 drop policy if exists widgets_read on public.widgets;
@@ -192,7 +225,8 @@ create policy versions_insert on public.versions for insert to authenticated
 
 -- ---------------------------------------------------------------- grants
 -- Supabase grants everything on public tables to anon and authenticated by default. Take it back
--- and hand out only what the policies above are for. No UPDATE or DELETE for anyone.
+-- and hand out only what the policies above are for. No UPDATE or DELETE for anyone, with one
+-- exception: a person may DELETE their own like, which is what taking a like back is.
 -- service_role needs SELECT on tables the Edge Functions read (admins, access_requests);
 -- bypassrls skips row policies but not table-level grants.
 
@@ -204,6 +238,10 @@ grant insert (id, username, bio, avatar) on public.profiles to authenticated;
 grant update (username, bio, avatar) on public.profiles to authenticated;
 grant insert (id, owner, slug) on public.widgets to authenticated;
 grant insert (widget_id, name, category, description, api_version, source, preview) on public.versions to authenticated;
+revoke all on public.likes from anon, authenticated;
+grant select on public.likes to authenticated;
+grant insert (widget_id, user_id) on public.likes to authenticated;
+grant delete on public.likes to authenticated;
 
 -- ---------------------------------------------------------------- public views (no account needed)
 -- Views run with their owner's rights (they bypass RLS), so each one filters to public data itself.
@@ -213,10 +251,15 @@ create or replace view public.authors as
   select id, username, bio, avatar from public.profiles;
 
 -- The newest approved version of every widget, without its source: the Explore list.
+-- installs and likes ride along so Explore can sort without a second round trip. Counting the
+-- likes on read keeps one source of truth; at this size the subquery costs nothing, and a
+-- denormalised counter is what to reach for only once that stops being true.
 create or replace view public.explore as
   select distinct on (v.widget_id)
          v.widget_id as id, v.version, v.name, v.category, v.description, v.api_version,
-         v.sha256, v.preview, v.reviewed_at, p.username as author
+         v.sha256, v.preview, v.reviewed_at, p.username as author,
+         w.installs,
+         (select count(*) from public.likes l where l.widget_id = v.widget_id) as likes
     from public.versions v
     join public.widgets w on w.id = v.widget_id
     join public.profiles p on p.id = w.owner
@@ -295,6 +338,21 @@ revoke all on function public.request_access(text), public.reject_request(bigint
 grant execute on function public.request_access(text) to anon, authenticated;
 grant execute on function public.reject_request(bigint) to authenticated;
 
+-- ---------------------------------------------------------------- install counting
+
+-- Called by the app once a widget is really installed, not when its code is fetched: the source
+-- is downloaded to fill the confirm dialog, which the person may still cancel, so counting there
+-- would count second thoughts. Definer because no client may UPDATE widgets. Unknown or
+-- never-approved widgets are ignored rather than raised: a miscount must never break an install
+-- that already succeeded on the PC.
+create or replace function public.record_install(p_widget text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.has_approved(p_widget) then return; end if;
+  update public.widgets set installs = installs + 1 where id = p_widget;
+end;
+$$;
+
 -- ---------------------------------------------------------------- widget deletion (admin or owner)
 
 create or replace function public.delete_widget(p_widget text) returns void
@@ -309,11 +367,13 @@ end;
 $$;
 
 revoke all on function public.approve(text, int, text), public.reject(text, int),
-                       public.delete_widget(text),
+                       public.delete_widget(text), public.record_install(text),
                        public.is_admin(), public.my_username(), public.owns_widget(text), public.has_approved(text),
                        public.next_version(), public.source_is_plain(text) from public, anon, authenticated;
 grant execute on function public.approve(text, int, text), public.reject(text, int),
   public.delete_widget(text) to authenticated;
+-- Installing needs no account, so this one is open to anon too.
+grant execute on function public.record_install(text) to anon, authenticated;
 -- Policies run as the caller, so the roles that read need these helpers.
 grant execute on function public.is_admin(), public.my_username(), public.owns_widget(text), public.has_approved(text),
   public.source_is_plain(text)
