@@ -1,7 +1,7 @@
 // Shared helpers for every page. Everything people type or upload reaches the page through
 // textContent (el()), never innerHTML, and ids/previews are re-validated here even though the
 // database already checks them.
-import { SUPABASE_URL, SUPABASE_ANON_KEY, RELEASES_URL, DOWNLOAD_URL, REPO_URL, STORE_URL } from "../config.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, RELEASES_URL, DOWNLOAD_URL, REPO_URL, STORE_URL, ANALYTICS_CODE } from "../config.js";
 
 export { RELEASES_URL, DOWNLOAD_URL, REPO_URL, STORE_URL };
 
@@ -102,6 +102,39 @@ function routeAuthLink(current) {
   }
 }
 
+// Page views, and the four clicks worth knowing: Download, Microsoft Store, Get, and the
+// "not installed" prompt Get shows when nothing opened. Those four answer the questions a launch
+// post raises -- did it bring installs, and do visitors arrive without the app -- and nothing
+// else is collected. GoatCounter keeps a daily hash instead of a visitor and sets no cookie, so
+// there is no consent banner to show. Do Not Track is honoured here because its script does not
+// check it. With ANALYTICS_CODE empty, nothing is loaded and nothing is sent.
+export const eventKind = href =>
+  href === DOWNLOAD_URL ? "download"
+  : href === STORE_URL ? "store"
+  : href.indexOf("deskwidgets://install/") === 0 ? "get"
+  : null;
+
+// shortcut: a click landing before the async script does is not counted; add a queue if these
+// numbers ever read low against the download counts on the GitHub releases.
+function count(name) {
+  if (window.goatcounter && window.goatcounter.count)
+    window.goatcounter.count({ path: name, title: name, event: true });
+}
+
+// One delegated listener rather than a handler per link: index.html, explore.html and
+// widget.html each build their own download and Get buttons.
+function analytics() {
+  if (!ANALYTICS_CODE || navigator.doNotTrack === "1") return;
+  document.head.append(el("script", { async: true, src: "//gc.zgo.at/count.js",
+    "data-goatcounter": "https://" + ANALYTICS_CODE + ".goatcounter.com/count" }));
+  addEventListener("click", e => {
+    const a = e.target.closest ? e.target.closest("a") : null;
+    if (!a) return;
+    const kind = eventKind(a.href);
+    if (kind) count(kind);
+  });
+}
+
 export function nav(current, options = {}) {
   routeAuthLink(current);
   if (leaving) return;
@@ -120,6 +153,7 @@ export function nav(current, options = {}) {
   // there (from a sample session) would contradict the page.
   if (options.signedOut) account.replaceChildren(signInLink(current));
   else accountNav(account, current).catch(() => account.replaceChildren(signInLink(current)));
+  analytics();
 }
 
 const signInLink = current => el("a", { class: "link", href: "login.html?next=" + encodeURIComponent(location.pathname.split("/").pop() || "./"),
@@ -362,6 +396,7 @@ export function getButton(id, version, label = "Get", cls = "get") {
       removeEventListener("blur", away);
       document.removeEventListener("visibilitychange", away);
       if (left || document.hidden || !document.hasFocus()) return;
+      count("no-app");
       confirmDialog("Desk Widgets isn’t installed",
         "Get opens the app on your PC. Download it, then click Get again to install this widget.",
         "Download", () => { location.href = DOWNLOAD_URL; }, false);
