@@ -26,16 +26,23 @@ namespace DeskWidgets
         {
             public string Id, Name, Category, Description, Author;
             public int Version, Api;
+            public int Installs, Likes;
         }
 
         // ---- reading ----
 
+        // The apikey header alone reads public rows with either key type. A classic anon key is a
+        // JWT and may also go in Authorization; a newer publishable key (sb_publishable_...) must not.
+        static Dictionary<string, string> AnonHeaders()
+        {
+            var h = new Dictionary<string, string> { { "apikey", AnonKey } };
+            if (AnonKey.StartsWith("eyJ")) h["Authorization"] = "Bearer " + AnonKey;
+            return h;
+        }
+
         static object[] Query(string pathAndQuery)
         {
-            // The apikey header alone reads public rows with either key type. A classic anon key is a
-            // JWT and may also go in Authorization; a newer publishable key (sb_publishable_...) must not.
-            var headers = new Dictionary<string, string> { { "apikey", AnonKey } };
-            if (AnonKey.StartsWith("eyJ")) headers["Authorization"] = "Bearer " + AnonKey;
+            var headers = AnonHeaders();
             string json = Encoding.UTF8.GetString(Http.GetBytes(Url.TrimEnd('/') + "/rest/v1/" + pathAndQuery, headers));
             var parsed = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 }.DeserializeObject(json) as object[];
             if (parsed == null) throw new FormatException("Unexpected answer from the gallery.");
@@ -59,11 +66,12 @@ namespace DeskWidgets
         public static List<Listing> Explore()
         {
             // Previews are fetched separately, once per version (Preview), so the list stays small.
-            return Query("explore?select=id,version,name,category,description,api_version,author&order=reviewed_at.desc")
+            return Query("explore?select=id,version,name,category,description,api_version,author,installs,likes&order=reviewed_at.desc")
                 .Select(r => new Listing
                 {
                     Id = Text(r, "id"), Version = Number(r, "version"), Name = Text(r, "name") ?? "", Category = Text(r, "category"),
-                    Description = Text(r, "description") ?? "", Author = Text(r, "author") ?? "", Api = Number(r, "api_version")
+                    Description = Text(r, "description") ?? "", Author = Text(r, "author") ?? "", Api = Number(r, "api_version"),
+                    Installs = Number(r, "installs"), Likes = Number(r, "likes")
                 })
                 .Where(l => Plugins.IsValidId(l.Id) && l.Version > 0)
                 .ToList();
@@ -301,7 +309,25 @@ namespace DeskWidgets
                 Id = id, Version = version, Api = api, Name = name, Category = Text(row, "category"),
                 Description = Text(row, "description"), Author = author, Sha256 = Text(row, "sha256")
             };
-            Plugins.InstallChecked(p, bytes, name);
+            if (Plugins.InstallChecked(p, bytes, name)) RecordInstall(id);
+        }
+
+        // Counted once the widget is really on the PC, not when its code was fetched: the source is
+        // downloaded to fill the confirm dialog, which the person may still cancel. Best effort and
+        // silent -- a widget that installed must never report a failure because a counter could not
+        // be reached, and the number is a ranking signal, not something anyone is owed.
+        static void RecordInstall(string id)
+        {
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    Http.SendJson("POST", Url.TrimEnd('/') + "/rest/v1/rpc/record_install", AnonHeaders(),
+                                  new JavaScriptSerializer().Serialize(
+                                      new Dictionary<string, object> { { "p_widget", id } }));
+                }
+                catch (Exception) { }
+            });
         }
 
         // ---- updates ----

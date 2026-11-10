@@ -54,6 +54,11 @@ namespace DeskWidgets
         [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int processId);
         [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
         [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+        // The grey prompt a text box shows while it is empty: Windows draws and clears it itself,
+        // so it never has to be told apart from real text (EM_SETCUEBANNER).
+        public const int EM_SETCUEBANNER = 0x1501;
+        [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)]
+        public static extern IntPtr SendMessageText(IntPtr hWnd, int msg, IntPtr wParam, string lParam);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string name);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int RegisterWindowMessage(string name);
         [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr hWnd);
