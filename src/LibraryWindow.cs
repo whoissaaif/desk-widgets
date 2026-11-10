@@ -221,7 +221,13 @@ namespace DeskWidgets
             y += Px(36);
         }
 
-        void ShowPage(string target)
+        void ShowPage(string target) { ShowPage(target, true); }
+
+        // navigating: someone picked this page. Going to a page starts at its top and slides in;
+        // being handed the same page again does neither. Installing a widget rebuilds the cards and
+        // shows the page afresh, and that used to throw away where you were -- so installing a
+        // second widget from the same row meant scrolling back down to find it.
+        void ShowPage(string target, bool navigating)
         {
             page = target;
             foreach (var item in nav)
@@ -245,8 +251,11 @@ namespace DeskWidgets
                 header.Set(cat.Name, cat.Description + ". Drag a widget onto your desktop, or double-click to add it.");
             else
                 header.Set("All Widgets", "Drag a widget onto your desktop, or double-click to add it.");
-            content.ScrollToTop();
-            content.SlideIn();
+            if (navigating)
+            {
+                content.ScrollToTop();
+                content.SlideIn();
+            }
             LayoutContent();
         }
 
@@ -681,7 +690,8 @@ namespace DeskWidgets
             content.ResumeLayout();
             BuildNav();
             foreach (var c in exploreCards) c.RefreshState();
-            ShowPage(page == InstalledPage || page == ExplorePage || page == SettingsPage || sections.Exists(s => s.Category.Id == page) ? page : null);
+            ShowPage(page == InstalledPage || page == ExplorePage || page == SettingsPage || sections.Exists(s => s.Category.Id == page) ? page : null,
+                     false);
         }
 
         // Windows switched light/dark: recolor everything.
@@ -694,7 +704,7 @@ namespace DeskWidgets
             settingsAppearanceLabel.ForeColor = Theme.Label2;
             updateLabel.ForeColor = Theme.Label;
             BuildNav();
-            ShowPage(page);
+            ShowPage(page, false); // a repaint for the new theme, not a move to another page
             foreach (Control c in content.Controls) c.Invalidate();
             settings.Invalidate();
             account.Invalidate();
