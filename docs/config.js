@@ -15,4 +15,4 @@ export const STORE_URL = "https://apps.microsoft.com/detail/9PML42WDP84Z";
 // GoatCounter site code: the first label of its subdomain, so "deskwidgets" for
 // deskwidgets.goatcounter.com. Empty means no analytics script is loaded at all, which is the
 // state the privacy page describes when this is blank. Sign up at https://www.goatcounter.com.
-export const ANALYTICS_CODE = "";
+export const ANALYTICS_CODE = "deskwidgets";
