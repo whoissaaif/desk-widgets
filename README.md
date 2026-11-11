@@ -142,7 +142,7 @@ widget shows instantly at startup and keeps working offline.
   corner on any resolution, DPI, or machine, and re-snaps when the display changes.
 - Sizes are in logical pixels and scale with DPI.
 
-## Why it's light
+## Why it's light.
 
 - Per-pixel-alpha layered window (`UpdateLayeredWindow`) drawing into one reusable DIB, with no per-frame allocations.
 - Widgets redraw only when something changes: the clock once a second, System every 2 s, the timer
