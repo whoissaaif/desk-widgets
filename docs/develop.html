@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create a Widget · Desk Widgets</title>
+  <meta name="description" content="How to build, test and publish a community widget for Desk Widgets.">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <main class="content narrow section">
+    <h1 class="t-large">Create a Widget</h1>
+    <p class="t-reduced">Everything you need to write, test and publish a community widget.</p>
+
+    <p>A community widget is a single <code>.cs</code> file written in C# 5. It compiles against
+    the running app, so there are no dependencies to install and no project file to manage. If you
+    can draw with GDI+ and write a class, you can make a widget.</p>
+
+    <h2 class="block">Before you start</h2>
+
+    <div class="group" role="list">
+      <div class="row"><div class="main"><div class="t-headline">Install Desk Widgets</div>
+        <div class="t-reduced">You need the app running to load your widget. Download it from
+        the home page or the Microsoft Store.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">Pick a text editor</div>
+        <div class="t-reduced">Any editor works. Visual Studio or VS Code with the C# extension
+        will give you autocomplete, but Notepad is fine too.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">No NuGet, no SDK</div>
+        <div class="t-reduced">Widgets compile with the .NET Framework compiler built into
+        Windows. No SDK download is needed.</div></div></div>
+    </div>
+
+    <h2 class="block">The smallest widget</h2>
+
+    <p>Start with this. It draws a dark rounded rectangle and says hello.</p>
+
+    <pre class="code">using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using DeskWidgets;
+
+[DeskWidget(Name = "Hello", Description = "The smallest community widget")]
+public sealed class HelloWidget : WidgetWindow
+{
+    public HelloWidget(Section s) : base(s) { }
+
+    protected override Size Measure()
+    {
+        return new Size(Px(170), Px(170));
+    }
+
+    protected override void Draw(Graphics g)
+    {
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.Clear(Color.Transparent);
+        int r = Px(22), w = Px(170);
+        using (var path = new GraphicsPath())
+        {
+            path.AddArc(0, 0, r * 2, r * 2, 180, 90);
+            path.AddArc(w - r * 2 - 1, 0, r * 2, r * 2, 270, 90);
+            path.AddArc(w - r * 2 - 1, w - r * 2 - 1, r * 2, r * 2, 0, 90);
+            path.AddArc(0, w - r * 2 - 1, r * 2, r * 2, 90, 90);
+            path.CloseFigure();
+            using (var b = new SolidBrush(Color.FromArgb(28, 28, 30)))
+                g.FillPath(b, path);
+        }
+        using (var f = new Font("Segoe UI Semibold", 20f, GraphicsUnit.Pixel))
+            g.DrawString("Hello", f, Brushes.White, Px(16), Px(16));
+        using (var f = new Font("Segoe UI", 13f, GraphicsUnit.Pixel))
+            g.DrawString(DateTime.Now.ToString("HH:mm"), f,
+                Brushes.Gray, Px(16), Px(44));
+    }
+}</pre>
+
+    <p>Save this as <code>HelloWidget.cs</code>, then in the app go to
+    <strong>Installed &gt; Install from File&hellip;</strong> and pick the file. The widget appears
+    on your desktop.</p>
+
+    <h2 class="block">Key concepts</h2>
+
+    <h3 class="t-headline" style="margin-top:24px">Two base classes</h3>
+    <p>Every widget extends one of these:</p>
+    <div class="group" role="list">
+      <div class="row"><div class="main"><div class="t-headline">WidgetWindow</div>
+        <div class="t-reduced">The low-level base. You get a <code>Graphics</code> surface and
+        draw everything yourself. Use this when you want full control over rendering (the Hello
+        example above uses it).</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">CardWidget</div>
+        <div class="t-reduced">Extends WidgetWindow with Apple-style card drawing: rounded
+        rectangle, dark/light/vibrant palettes, DPI-aware sizing, font caching, emoji support,
+        and text helpers. Most community widgets use this.</div></div></div>
+    </div>
+
+    <h3 class="t-headline" style="margin-top:32px">Attribute</h3>
+    <p>Mark your class with <code>[DeskWidget]</code>. The <code>Name</code> is what users see in
+    the library and the <code>Description</code> appears below it.</p>
+
+    <pre class="code">[DeskWidget(Name = "My Widget", Description = "One line about what it shows")]
+public sealed class MyWidget : CardWidget { ... }</pre>
+
+    <h3 class="t-headline" style="margin-top:32px">Constructor</h3>
+    <p>The constructor receives a <code>Section</code> (the widget's settings bag). Pass it to the
+    base class. For CardWidget, the second argument says whether the widget is full-bleed (picture
+    widgets like Photo Frame pass <code>true</code>; most pass <code>false</code>).</p>
+
+    <pre class="code">public MyWidget(Section settings) : base(settings, false) { }</pre>
+
+    <h3 class="t-headline" style="margin-top:32px">Drawing</h3>
+    <p>Override <code>DrawContent(Graphics g, Palette pal)</code> for CardWidget, or
+    <code>Draw(Graphics g)</code> for WidgetWindow. The card base handles the background,
+    rounded corners and size. You draw the content inside.</p>
+
+    <pre class="code">protected override void DrawContent(Graphics g, Palette pal)
+{
+    Label(g, "Hello", F(15, "semibold"), pal.Fg, P(16), P(24));
+    Label(g, DateTime.Now.ToString("HH:mm"), F(11, "regular"),
+        pal.Fg2, P(16), P(48));
+}</pre>
+
+    <h3 class="t-headline" style="margin-top:32px">Sizes</h3>
+    <p>CardWidget supports three sizes: small (170 &times; 170 pt), medium (364 &times; 170 pt) and
+    large (364 &times; 382 pt). The base class handles measuring and DPI scaling. Use
+    <code>P(pt)</code> for point-to-pixel conversion and <code>W</code> / <code>H</code> for the
+    current size in pixels.</p>
+
+    <h3 class="t-headline" style="margin-top:32px">Settings</h3>
+    <p>Read and write settings through <code>Settings</code>, the INI-backed bag the constructor
+    receives.</p>
+
+    <pre class="code">string city = Settings.Get("city", "London");
+Settings.Set("city", "Paris");
+
+int count = Settings.GetInt("count", 0);
+bool on = Settings.GetBool("dark", true);</pre>
+
+    <h3 class="t-headline" style="margin-top:32px">Animation</h3>
+    <p>Return a positive number from <code>NextFrameDelay()</code> and the app will call
+    <code>Draw</code> again after that many milliseconds. Return <code>-1</code> when there is
+    nothing to animate. Call <code>Render()</code> to request a single redraw on demand.</p>
+
+    <pre class="code">protected override int NextFrameDelay()
+{
+    // Redraw once a minute for a clock.
+    return 60000 - DateTime.Now.Second * 1000;
+}</pre>
+
+    <h3 class="t-headline" style="margin-top:32px">Context menus</h3>
+    <p>Override <code>BuildWidgetMenu(PopupMenu menu)</code> (CardWidget) or
+    <code>BuildMenu(PopupMenu menu)</code> (WidgetWindow) to add items to the right-click
+    menu.</p>
+
+    <pre class="code">protected override void BuildWidgetMenu(PopupMenu menu)
+{
+    menu.Add("Refresh", delegate { LoadData(); });
+    menu.AddCheck("Dark Mode", isDark, delegate { isDark = !isDark; Render(); });
+    var sub = menu.AddSubmenu("Interval");
+    sub.AddChoice("1 min", interval == 1, delegate { interval = 1; });
+    sub.AddChoice("5 min", interval == 5, delegate { interval = 5; });
+}</pre>
+
+    <h3 class="t-headline" style="margin-top:32px">Background work</h3>
+    <p>Never block the UI thread. Use the <code>Background</code> helper to run work off-thread
+    and receive the result on the UI thread.</p>
+
+    <pre class="code">Background(() => {
+    // Runs on a background thread.
+    return Http.GetString("https://api.example.com/data");
+}, (result, error) => {
+    // Runs on the UI thread.
+    if (error == null) { data = result; Render(); }
+});</pre>
+
+    <h3 class="t-headline" style="margin-top:32px">HTTP requests</h3>
+    <p>The <code>Http</code> helper provides simple GET and POST methods that return strings or
+    bytes.</p>
+
+    <pre class="code">string json = Http.GetString("https://api.example.com/data");
+byte[] image = Http.GetBytes("https://example.com/photo.jpg");</pre>
+
+    <h2 class="block">A CardWidget example</h2>
+
+    <p>This widget shows a greeting and the current time, with a right-click option to change the
+    name.</p>
+
+    <pre class="code">using System;
+using System.Drawing;
+using DeskWidgets;
+using DeskWidgets.Widgets;
+
+[DeskWidget(Name = "Greeting", Description = "Says hello by name")]
+public sealed class GreetingWidget : CardWidget
+{
+    public GreetingWidget(Section settings) : base(settings, false) { }
+
+    string Name { get { return Settings.Get("name", "World"); } }
+
+    protected override int NextFrameDelay()
+    {
+        return 60000 - DateTime.Now.Second * 1000;
+    }
+
+    protected override void DrawContent(Graphics g, Palette pal)
+    {
+        float m = P(16);
+        Label(g, "Hello, " + Name, F(17, "semibold"), pal.Fg,
+            m, P(24));
+        Label(g, DateTime.Now.ToString("dddd, h:mm tt"),
+            F(13, "regular"), pal.Fg2, m, P(52));
+    }
+
+    protected override void BuildWidgetMenu(PopupMenu menu)
+    {
+        menu.Add("Change Name…", delegate
+        {
+            string input = InputDialog.Show("Name", Name);
+            if (input != null)
+            {
+                Settings.Set("name", input);
+                Render();
+            }
+        });
+    }
+}</pre>
+
+    <h2 class="block">Testing your widget</h2>
+
+    <div class="group" role="list">
+      <div class="row"><div class="main"><div class="t-headline">Install from file</div>
+        <div class="t-reduced">In the app, go to <strong>Installed &gt; Install from
+        File&hellip;</strong> and pick your <code>.cs</code> file. The widget compiles and
+        appears on your desktop.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">Edit and reload</div>
+        <div class="t-reduced">Change your file, then right-click the widget and choose
+        <strong>Reload</strong>. The app recompiles and redraws it without removing
+        it.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">Check all three appearances</div>
+        <div class="t-reduced">Right-click &gt; Appearance and test Dark, Light and Vibrant.
+        Use <code>pal.Fg</code>, <code>pal.Fg2</code> and <code>pal.Bg</code> instead of
+        hard-coded colors so all three look right.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">Try every size</div>
+        <div class="t-reduced">If your widget supports small, medium and large, test all three.
+        Use <code>W</code> and <code>H</code> to lay out content relative to the current
+        size.</div></div></div>
+    </div>
+
+    <h2 class="block">Publishing</h2>
+
+    <p>When your widget is ready for others to use:</p>
+
+    <div class="group" role="list">
+      <div class="row"><div class="main"><div class="t-headline">1. Create an account</div>
+        <div class="t-reduced">Sign in on this site. You need an account to upload.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">2. Go to Upload</div>
+        <div class="t-reduced">Visit the <a href="upload.html">Upload</a> page. Fill in the
+        widget ID (a short unique slug like <code>greeting</code>), pick a category, and paste
+        your source code.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">3. Add a preview image</div>
+        <div class="t-reduced">Upload a screenshot of your widget (PNG or JPEG, max 1200 px on
+        the longest side). This is what people see in the gallery.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">4. Wait for review</div>
+        <div class="t-reduced">Every version is read by a person before it appears in the
+        gallery. You will see the status on your profile page.</div></div></div>
+    </div>
+
+    <h2 class="block">Rules</h2>
+
+    <div class="group" role="list">
+      <div class="row"><div class="main"><div class="t-headline">One file, C# 5</div>
+        <div class="t-reduced">Your widget is a single <code>.cs</code> file. No C# 6+ features
+        (no string interpolation, no null-conditional, no expression-bodied members). It compiles
+        with the .NET Framework 4 compiler built into Windows.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">No file system writes</div>
+        <div class="t-reduced">Widgets should not write to disk outside of the cache directory
+        returned by <code>CacheFile(name)</code>. Use <code>Settings</code> for
+        configuration.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">Stay light</div>
+        <div class="t-reduced">Desk Widgets runs in about 33 MB with seven widgets. Don't
+        allocate per frame. Run network and disk work on background threads. Check
+        <code>IsCovered()</code> and skip frames when the widget is behind other
+        windows.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">No bundled binaries</div>
+        <div class="t-reduced">Everything must be in your source file. You can use any namespace
+        from the .NET Framework and System.Drawing, but no external DLLs.</div></div></div>
+    </div>
+
+    <h2 class="block">API reference</h2>
+
+    <p>These are the main types your widget can use. Their source is in the
+    <a href="https://github.com/whoissaaif/desk-widgets">repository</a>.</p>
+
+    <div class="group" role="list">
+      <div class="row"><div class="main"><div class="t-headline">WidgetWindow</div>
+        <div class="t-reduced">Base class. Override <code>Measure()</code>,
+        <code>Draw(Graphics)</code>, <code>NextFrameDelay()</code>,
+        <code>BuildMenu(PopupMenu)</code>, <code>OnWidgetClick(Point)</code>.
+        Properties: <code>Settings</code>, <code>Dpi</code>. Methods: <code>Render()</code>,
+        <code>Px(logical)</code>, <code>IsCovered()</code>,
+        <code>Background(work, done)</code>.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">CardWidget</div>
+        <div class="t-reduced">Extends WidgetWindow. Override
+        <code>DrawContent(Graphics, Palette)</code> and
+        <code>BuildWidgetMenu(PopupMenu)</code>.
+        Helpers: <code>P(pt)</code>, <code>W</code>, <code>H</code>,
+        <code>F(pt, weight)</code>, <code>Label()</code>, <code>Paragraph()</code>,
+        <code>FillCircle()</code>, <code>FillRound()</code>, <code>RoundRect()</code>,
+        <code>CacheFile(name)</code>, <code>CardPath()</code>. Palette fields:
+        <code>Bg</code>, <code>Fg</code>, <code>Fg2</code>, <code>Fill</code>,
+        <code>Sep</code>, <code>Red</code>, <code>Orange</code>, <code>Green</code>,
+        <code>Blue</code>, <code>Purple</code>.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">Section</div>
+        <div class="t-reduced"><code>Get(key, default)</code>,
+        <code>GetInt(key, default)</code>, <code>GetBool(key, default)</code>,
+        <code>Set(key, value)</code>, <code>Remove(key)</code>.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">PopupMenu</div>
+        <div class="t-reduced"><code>Add(label, action)</code>,
+        <code>AddCheck(label, checked, action)</code>,
+        <code>AddSubmenu(label)</code> (returns a PopupMenu),
+        <code>AddChoice(label, selected, action)</code>.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">InputDialog</div>
+        <div class="t-reduced"><code>InputDialog.Show(prompt, defaultValue)</code> &mdash;
+        returns the entered string or <code>null</code> if cancelled.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">Http</div>
+        <div class="t-reduced"><code>GetString(url)</code>, <code>GetBytes(url)</code>,
+        <code>PostString(url, body, contentType)</code>. All blocking &mdash; call from a
+        background thread.</div></div></div>
+      <div class="row"><div class="main"><div class="t-headline">PluginApi</div>
+        <div class="t-reduced"><code>DataDir</code> (the app data folder),
+        <code>Protect(plain)</code> / <code>Unprotect(stored)</code> for DPAPI encryption,
+        <code>CalendarEvents</code> and <code>CalendarChanged</code> for shared
+        calendar data.</div></div></div>
+    </div>
+
+    <p style="margin-top:40px">Have questions? Open an issue at
+    <a href="https://github.com/whoissaaif/desk-widgets/issues">github.com/whoissaaif/desk-widgets/issues</a>.</p>
+  </main>
+
+  <script type="module">
+    import { nav } from "./assets/site.js";
+    nav("develop");
+  </script>
+</body>
+</html>

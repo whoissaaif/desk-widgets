@@ -145,6 +145,7 @@ export function nav(current, options = {}) {
       el("a", { class: "brand", href: "./" }, "Desk Widgets"),
       link("explore.html", "Explore", "explore"),
       link("upload.html", "Upload", "upload"),
+      link("develop.html", "Develop", "develop"),
       el("a", { class: "link", href: DOWNLOAD_URL }, "Download"),
       account, themeToggle())));
   document.body.append(footer());
@@ -172,7 +173,7 @@ function footer() {
         column("App", [[DOWNLOAD_URL, "Download"], [STORE_URL, "Microsoft Store"],
           [RELEASES_URL, "What's new"], ["privacy.html", "Privacy"]]),
         column("Open source", [[REPO_URL, "Source code"], [REPO_URL + "/issues", "Report an issue"],
-          [REPO_URL + "/blob/main/samples/HelloWidget.cs", "Write a widget in C#"]])),
+          ["develop.html", "Create a widget"]])),
       el("p", { class: "f-bottom" },
         "Copyright © 2026 whoissaaif and Desk Widgets contributors. Released under the MIT license.")));
 }
