@@ -16,14 +16,11 @@
     import { signInWithPassword } from "./assets/account.js";
     import { usingStub, stubbed } from "./assets/data.js";
 
-    nav("login", { signedOut: usingStub });   // with the stub nobody is signed in on this page
+    nav("login", { signedOut: usingStub });
     const page = document.getElementById("page");
-    // Only pages on this site, never another origin.
     const raw = new URLSearchParams(location.search).get("next") || "";
     const next = "index.html";
     const METHOD_KEY = "dw-signin-method";
-    // TODO: Supabase's default one-time-link expiry is 60 minutes; the project exposes no config
-    // value to read it from, so this is the default rather than a looked-up number.
     const LINK_MINUTES = 60;
 
     const icon = (paths, size) => {
@@ -60,14 +57,14 @@
       }
 
       // ---------- header and the method switch ----------
-      const tabPassword = el("button", { type: "button", class: "seg-tab", id: "tab-password", role: "tab",
-        "aria-selected": "true", "aria-controls": "panel" }, "Password");
-      const tabLink = el("button", { type: "button", class: "seg-tab", id: "tab-link", role: "tab",
-        "aria-selected": "false", "aria-controls": "panel" }, "Email link");
-      const tabs = el("div", { class: "seg auth-seg", role: "tablist", "aria-label": "Sign-in method" }, tabPassword, tabLink);
+      const tabSignIn = el("button", { type: "button", class: "seg-tab", id: "tab-signin", role: "tab",
+        "aria-selected": "true", "aria-controls": "panel" }, "Sign in");
+      const tabSignUp = el("button", { type: "button", class: "seg-tab", id: "tab-signup", role: "tab",
+        "aria-selected": "false", "aria-controls": "panel" }, "Sign up");
+      const tabs = el("div", { class: "seg auth-seg", role: "tablist", "aria-label": "Sign in or sign up" }, tabSignIn, tabSignUp);
       const panel = el("div", { id: "panel", class: "auth-panel", role: "tabpanel" });
 
-      // ---------- password ----------
+      // ---------- sign in (username + password) ----------
       const errorBanner = el("div", { class: "auth-err", role: "alert", hidden: true });
       const username = el("input", { class: "input", id: "username", autocomplete: "username", required: true,
         autocapitalize: "none", spellcheck: "false", maxlength: "24" });
@@ -87,19 +84,17 @@
       function showError() {
         errorBanner.replaceChildren(icon(ICON.alert, 16),
           el("span", {}, "That username and password don't match. Try again, or ",
-            el("button", { type: "button", class: "up-link", onclick: () => selectTab(true) }, "use an email link"), "."));
+            el("button", { type: "button", class: "up-link", onclick: () => selectTab(true) }, "sign up"), "."));
         errorBanner.hidden = false;
       }
 
-      const passwordForm = el("form", { class: "auth-form", onsubmit: async (e) => {
+      const signInForm = el("form", { class: "auth-form", onsubmit: async (e) => {
           e.preventDefault();
           errorBanner.hidden = true;
           signInButton.disabled = true;
           signInButton.replaceChildren(el("span", { class: "spinner" }), " Signing in…");
           username.disabled = password.disabled = reveal.disabled = true;
           const who = username.value.trim().toLowerCase();
-          // The stub stands in only while the database is not connected; the call below is the
-          // real one, unchanged.
           const error = usingStub
             ? (await stubbed(), password.value === "wrong" ? "That username and password don't match." : null)
             : await signInWithPassword(who, password.value);
@@ -119,18 +114,14 @@
           el("div", { class: "pw-wrap" }, password, reveal)),
         signInButton);
 
-      // ---------- one email form, used for the sign-in link and for the password reset ----------
-      // Two different emails, two different pages (Supabase sends each with its own template):
-      // the sign-in link signs in without a password and comes back to `next`; "Forgot password?"
-      // sends a "Change your password" email that opens password.html. Sign-ups are off, so
-      // unknown addresses get nothing, and the answer is the same either way.
-      const here = new URL(next, location.href).href;
-      const sendLink = (db, address) =>
-        db.auth.signInWithOtp({ email: address, options: { shouldCreateUser: false, emailRedirectTo: here } });
+      // ---------- sign up (email → magic link that creates the account) ----------
+      const here = new URL("account.html", location.href).href;
+      const sendSignUp = (db, address) =>
+        db.auth.signInWithOtp({ email: address, options: { shouldCreateUser: true, emailRedirectTo: here } });
       const sendReset = (db, address) =>
         db.auth.resetPasswordForEmail(address, { redirectTo: new URL("password.html", location.href).href });
 
-      function emailMethod({ id, buttonText, send, heading, sentLine, back }) {
+      function emailMethod({ id, buttonText, send, heading, hint, back }) {
         const email = el("input", { class: "input", type: "email", id, autocomplete: "email", required: true,
           placeholder: "you@example.com", "aria-describedby": id + "-hint" });
         const button = el("button", { class: "button auth-submit", type: "submit" }, buttonText);
@@ -144,8 +135,6 @@
             else {
               const db = await supabase();
               const { error } = await send(db, email.value.trim());
-              // Too many emails in a short time is the one failure worth showing; the rest look
-              // like success, so which addresses have accounts stays private.
               rateLimited = Boolean(error && /rate limit|too many/i.test(error.message));
             }
             button.disabled = false;
@@ -158,67 +147,66 @@
             showInbox(() => { panel.replaceChildren(form); email.value = ""; email.focus(); }, back);
           } },
           el("div", { class: "field" }, el("label", { for: id }, "Email"), email,
-            el("span", { class: "hint", id: id + "-hint" }, "The address your invite was sent to.")),
+            el("span", { class: "hint", id: id + "-hint" }, hint)),
           button);
         form.focusFirst = () => email.focus();
         if (heading) form.prepend(el("h2", { class: "auth-heading" }, heading));
-        form.sentLine = sentLine;
         return form;
       }
 
-      const linkForm = emailMethod({
-        id: "link-email", buttonText: "Email Me a Sign-In Link", send: sendLink,
+      const signUpForm = emailMethod({
+        id: "signup-email", buttonText: "Create Account", send: sendSignUp,
+        hint: "We'll send you a link to set up your account.",
         back: "Use a different email",
       });
       const resetForm = emailMethod({
         id: "reset-email", buttonText: "Email Me a Password Link", send: sendReset,
-        heading: "Change your password.", back: "Back to sign in",
+        heading: "Change your password.",
+        hint: "The email on your account.",
+        back: "Back to sign in",
       });
 
       function showInbox(again, backText) {
         panel.replaceChildren(el("div", { class: "inbox", role: "status" },
           el("span", { class: "inbox-icon" }, icon(ICON.mail, 24)),
           el("h2", {}, "Check your inbox."),
-          el("p", {}, "If an invite was sent to that address, a sign-in link is on its way. " +
-            "It works once and expires in " + LINK_MINUTES + " minutes."),
+          el("p", {}, "A link is on its way. It works once and expires in " + LINK_MINUTES + " minutes."),
           el("button", { type: "button", class: "up-link", onclick: backText === "Back to sign in"
             ? () => selectTab(false) : again }, backText)));
       }
 
       function showReset() {
-        tabPassword.setAttribute("aria-selected", "false");
-        tabLink.setAttribute("aria-selected", "false");
+        tabSignIn.setAttribute("aria-selected", "false");
+        tabSignUp.setAttribute("aria-selected", "false");
         panel.replaceChildren(resetForm);
         resetForm.focusFirst();
       }
 
       let first = true;
-      function selectTab(linkMethod) {
-        tabPassword.setAttribute("aria-selected", String(!linkMethod));
-        tabLink.setAttribute("aria-selected", String(linkMethod));
-        panel.replaceChildren(linkMethod ? linkForm : passwordForm);
-        store(METHOD_KEY, linkMethod ? "link" : "password");
-        // Focusing on a phone's first paint pops the keyboard up over the page.
+      function selectTab(signUp) {
+        tabSignIn.setAttribute("aria-selected", String(!signUp));
+        tabSignUp.setAttribute("aria-selected", String(signUp));
+        panel.replaceChildren(signUp ? signUpForm : signInForm);
+        store(METHOD_KEY, signUp ? "signup" : "signin");
         const wide = window.matchMedia("(min-width: 700px)").matches;
         if (!first || wide) {
-          if (linkMethod) linkForm.focusFirst();
+          if (signUp) signUpForm.focusFirst();
           else username.focus();
         }
         first = false;
       }
-      tabPassword.addEventListener("click", () => selectTab(false));
-      tabLink.addEventListener("click", () => selectTab(true));
+      tabSignIn.addEventListener("click", () => selectTab(false));
+      tabSignUp.addEventListener("click", () => selectTab(true));
 
       page.replaceChildren(
-        el("h1", { class: "auth-title" }, "Sign in."),
-        el("p", { class: "auth-sub" }, "Uploading is invite-only. Use the account from your invite."),
+        el("h1", { class: "auth-title" }, "Welcome."),
+        el("p", { class: "auth-sub" }, "Sign in or create an account to upload widgets."),
         tabs,
-        panel,
-        el("p", { class: "auth-foot" }, "No account? Uploading is by invitation. ",
-          el("a", { class: "more", href: "upload.html#request" }, "Request access")));
+        panel);
 
       if (location.hash === "#forgot") { showReset(); first = false; return; }
-      selectTab(location.hash === "#link" || stored(METHOD_KEY) === "link");
+      if (location.hash === "#signup") { selectTab(true); first = false; return; }
+      selectTab(stored(METHOD_KEY) === "signup");
     }
     main().catch(() => page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true)));
   </script>

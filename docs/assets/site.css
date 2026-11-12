@@ -67,7 +67,7 @@ img { display: block; max-width: 100%; }
 @media (max-width: 480px) { .nav .inner { padding: 0 12px; gap: 14px; } }
 
 /* ---- account: Sign In, or the photo with a menu (§17.4 menus) ---- */
-.nav .account { position: relative; display: flex; align-items: center; margin-left: 4px; }
+.nav .account { position: relative; display: flex; align-items: center; gap: 16px; margin-left: 4px; }
 .avatar { display: inline-grid; place-items: center; flex: none; border-radius: 50%; object-fit: cover;
   background: var(--grey-fill); color: var(--text-2); font-family: var(--font-text); font-weight: 600; line-height: 1; }
 .avatar-button { display: grid; place-items: center; height: 48px; padding: 0; border: 0; background: none; cursor: pointer; }

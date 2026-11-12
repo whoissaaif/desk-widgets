@@ -26,8 +26,6 @@
     // Supabase and against the sample rows used while it isn't connected.
     import { available, getSession, getMyWidgets, getMyVersions, idTaken, createWidget,
       createVersion, deleteWidget } from "./assets/data.js";
-    import { requestAccessForm } from "./assets/account.js";
-
     nav("upload");
     const page = document.getElementById("page");
     const MAX_SOURCE = 512 * 1024;
@@ -75,14 +73,7 @@
         el("div", { class: "up-wide", style: "text-align: center" },
           el("p", { style: "font: 400 17px/24px var(--font-text); margin: 0 0 20px" },
             "Sign in to send a widget for review."),
-          el("a", { class: "button", href: "login.html?next=upload.html" }, "Sign In")),
-        // Kept: this is the only route to an invitation, and the page is the only place it lives.
-        el("section", { class: "up-wide", id: "request", style: "max-width: 560px; margin: 24px auto 0" },
-          el("h2", { class: "up-label", style: "margin-bottom: 8px" }, "No account yet?"),
-          el("p", { class: "t-reduced", style: "margin: 0 0 16px" },
-            "Uploading is by invitation. Leave your email; if the owner accepts, you'll get an invite."),
-          requestAccessForm()));
-      if (location.hash === "#request") document.getElementById("request-email").focus();
+          el("a", { class: "button", href: "login.html?next=upload.html" }, "Sign In")));
     }
 
     // Trim the transparent (or uniform) border, add an even 4% back, cap at 1200px, re-encode PNG.
