@@ -88,12 +88,12 @@
     };
 
     async function main() {
-      // An invite or password link that expired or was used already comes back with an error.
+      // A sign-up or password link that expired or was used already comes back with an error.
       const hash = new URLSearchParams(location.hash.slice(1));
       if (hash.get("error_description")) {
         page.replaceChildren(el("div", { class: "up-form" },
           el("h1", { class: "t-section" }, "Link expired."),
-          notice(hash.get("error_description") + ". Ask the owner to send your invite again, or use “Forgot password” on the sign-in page.", true),
+          notice(hash.get(“error_description”) + “. Try signing up again, or use “Forgot password” on the sign-in page.”, true),
           el("div", { class: "actions" }, el("a", { class: "button", href: "login.html" }, "Go to Sign In"))));
         return;
       }
@@ -308,7 +308,7 @@
         el("div", { class: "locked-row" }, svg(ICON.lock, 16),
           el("span", { class: "locked-value" }, maskEmail(email)),
           el("span", { class: "hint" }, "Private")),
-        el("span", { class: "hint" }, "The address your invite was sent to. Used for sign-in links, never shown publicly.")) : null;
+        el("span", { class: "hint" }, "Used for sign-in links, never shown publicly.")) : null;
 
       // ---- password ----
       const current = el("input", { class: "input", id: "current-password", type: "password",
@@ -414,9 +414,7 @@
       });
     }
 
-    // ---------------------------------------------------------------- first time, from an invite
-    // Unchanged in substance: the invite flow is the only way an account is created, and it uses
-    // the same insert and the same password call as before.
+    // ---------------------------------------------------------------- first time setup
     function firstTime(who, db) {
       head.hidden = true;
       let photo = null;
@@ -471,7 +469,7 @@
         el("p", { class: "band-sub", style: "margin-left: 0; margin-right: 0" },
           "Choose how you'll sign in and how people see you."),
         form));
-      toast("Invite accepted. You're signed in.");
+      toast("You're signed in. Set up your account below.");
       username.focus();
     }
     main().catch(() => page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true)));

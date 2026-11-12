@@ -65,7 +65,7 @@ export async function restQuery(pathAndQuery) {
 }
 
 // One client per page, even when the nav and the page ask at the same time (two would both try to
-// read an invite link's session from the address).
+// read a sign-in link's session from the address).
 let client;
 export function supabase() {
   if (!configured) return Promise.reject(new Error("The gallery isn't connected to its database yet."));
@@ -209,7 +209,7 @@ export async function me() {
   return { user: session.user, profile, admin: Boolean(admin) };
 }
 
-// Invite and sign-in links come back to whichever page Supabase was told (or the site root), with
+// Sign-in and sign-up links come back to whichever page Supabase was told (or the site root), with
 // the result in the address (#access_token=... or #error=...). Every page finishes that here; the
 // account page shows its own message.
 async function accountNav(host, current) {
@@ -219,7 +219,7 @@ async function accountNav(host, current) {
     const why = (hash.get("error_description") || hash.get("error") || "").replace(/\+/g, " ");
     const main = document.querySelector("main");
     if (main) main.prepend(notice("That link didn't work" + (why ? " (" + why + ")" : "") +
-      ". Links expire after a day and work once. Ask the owner to send your invite again, or use “Forgot your password” on the sign-in page.", true));
+      ". Links expire after a day and work once. Try signing up again, or use “Forgot your password” on the sign-in page.", true));
     host.replaceChildren(signInLink(current));
     return;
   }
