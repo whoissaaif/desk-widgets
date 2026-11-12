@@ -42,39 +42,45 @@ if (-not (Test-Path $assetDir)) { New-Item -ItemType Directory -Path $assetDir -
 
 Add-Type -AssemblyName System.Drawing
 
+# Extract the largest image from the ICO (256x256) as the master source.
+$icon256 = New-Object System.Drawing.Icon($icoPath, 256, 256)
+$masterSrc = $icon256.ToBitmap()
+$icon256.Dispose()
+
 function Export-IconPng([string]$outPath, [int]$width, [int]$height) {
-    $icon = New-Object System.Drawing.Icon($icoPath, 48, 48)
-    $src = $icon.ToBitmap()
     $bmp = New-Object System.Drawing.Bitmap($width, $height)
     $g = [System.Drawing.Graphics]::FromImage($bmp)
     $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
     $g.SmoothingMode     = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
     $g.Clear([System.Drawing.Color]::Transparent)
-    $g.DrawImage($src, 0, 0, $width, $height)
+    $g.DrawImage($masterSrc, 0, 0, $width, $height)
     $g.Dispose()
     $bmp.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Png)
     $bmp.Dispose()
-    $src.Dispose()
-    $icon.Dispose()
 }
 
 Export-IconPng (Join-Path $assetDir "Square44x44Logo.png")   44  44
 Export-IconPng (Join-Path $assetDir "Square150x150Logo.png") 150 150
 Export-IconPng (Join-Path $assetDir "StoreLogo.png")         50  50
 
+# Target-size variants for the taskbar and Start menu icon (unplated).
+foreach ($sz in @(16, 24, 32, 48, 256)) {
+    Export-IconPng (Join-Path $assetDir "Square44x44Logo.targetsize-$sz.png") $sz $sz
+}
+
 # Wide logo: 310x150 with centered icon
 $wide = New-Object System.Drawing.Bitmap(310, 150)
 $g = [System.Drawing.Graphics]::FromImage($wide)
 $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
 $g.Clear([System.Drawing.Color]::Transparent)
-$icon = New-Object System.Drawing.Icon($icoPath, 48, 48)
-$src = $icon.ToBitmap()
-$g.DrawImage($src, 91, 11, 128, 128)
-$g.Dispose(); $src.Dispose(); $icon.Dispose()
+$g.DrawImage($masterSrc, 91, 11, 128, 128)
+$g.Dispose()
 $wide.Save((Join-Path $assetDir "Wide310x150Logo.png"), [System.Drawing.Imaging.ImageFormat]::Png)
 $wide.Dispose()
 
-Write-Host "  Square44x44Logo.png, Square150x150Logo.png, Wide310x150Logo.png, StoreLogo.png"
+$masterSrc.Dispose()
+
+Write-Host "  Tile logos, target-size variants, Wide310x150Logo.png, StoreLogo.png"
 
 # --- Create package layout ---
 Write-Host "Creating package layout..."
