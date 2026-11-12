@@ -192,6 +192,11 @@ Code must stay C# 5 (the compiler built into Windows): no `$"..."`, `?.`, or `=>
 Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Report security
 problems privately as described in [SECURITY.md](SECURITY.md).
 
+## License
+
+[MIT](LICENSE).
+
+
 ## Star History
 
 <a href="https://www.star-history.com/#whoissaaif/desk-widgets&Date">
@@ -201,7 +206,3 @@ problems privately as described in [SECURITY.md](SECURITY.md).
     <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=whoissaaif/desk-widgets&type=Date" />
   </picture>
 </a>
-
-## License
-
-[MIT](LICENSE).
