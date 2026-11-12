@@ -371,6 +371,24 @@ namespace DeskWidgets
             RaiseWidgetsChanged();
         }
 
+        public void MergeSection(Section s)
+        {
+            int n = 1;
+            while (config.Sections.Exists(x => x.Name == "widget" + n)) n++;
+            var section = new Section("widget" + n);
+            foreach (var kv in s.Values) section.Values[kv.Key] = kv.Value;
+            config.Sections.Add(section);
+            section.Owner = config;
+            config.Save();
+        }
+
+        public void OpenMerged()
+        {
+            foreach (var section in config.Sections.ToArray())
+                if (!widgets.Any(w => w.Settings == section)) Open(section);
+            RaiseWidgetsChanged();
+        }
+
         public void RemoveWidget(WidgetWindow w)
         {
             if (!AlertDialog.Confirm("Remove Widget?", "This widget and its settings will be removed.", "Remove")) return;
@@ -386,6 +404,9 @@ namespace DeskWidgets
             menu.Add("Open " + AppName, OpenLibrary);
             menu.AddCheck("Start with Windows", StartWithWindows, delegate { StartWithWindows = !StartWithWindows; });
             menu.Add("Settings…", delegate { OpenLibrary(); if (library != null) library.OpenSettings(); });
+            menu.AddSeparator();
+            menu.Add("Export Backup…", Backup.Export);
+            menu.Add("Restore from Backup…", Backup.Import);
             menu.AddSeparator();
             menu.Add("Quit " + AppName, Exit);
             menu.Show(Cursor.Position);

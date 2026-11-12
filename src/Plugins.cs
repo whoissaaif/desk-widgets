@@ -129,6 +129,7 @@ namespace DeskWidgets
                 try { p = PluginInfo.Load(dir); }
                 catch (Exception) { continue; }
                 if (p.Id != id) continue;
+                if (installed.ContainsKey(id)) continue;
                 installed[id] = p;
                 if (id == crashed && p.Disabled == null)
                 {

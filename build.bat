@@ -13,6 +13,7 @@ set WINMD=%WINDIR%\System32\WinMetadata
 "%FW%\csc.exe" /nologo /target:winexe /optimize+ /utf8output /codepage:65001 /out:bin\DeskWidgets.exe ^
   /win32icon:assets\app.ico /resource:assets\app.ico,DeskWidgets.app.ico ^
   /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Core.dll /r:System.Security.dll /r:System.Web.Extensions.dll ^
+  /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll ^
   /r:"%FW%\System.Runtime.dll" /r:"%FW%\System.Runtime.InteropServices.WindowsRuntime.dll" ^
   /r:"%WINMD%\Windows.Foundation.winmd" /r:"%WINMD%\Windows.Media.winmd" /r:"%WINMD%\Windows.Storage.winmd" ^
   /r:"%WINMD%\Windows.ApplicationModel.winmd" ^
