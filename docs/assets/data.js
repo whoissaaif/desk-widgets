@@ -59,6 +59,13 @@ export async function getProfiles() {
   return restQuery("authors?" + new URLSearchParams({ select: "username,bio,avatar" }));
 }
 
+// A single author's profile by username, or null.
+export async function getProfile(username) {
+  if (usingMocks) return withTimeout(mocks().then((m) => (m.profiles || []).find((p) => p.username === username) || null));
+  const rows = await restQuery("authors?" + new URLSearchParams({ select: "username,bio,avatar", username: "eq." + username, limit: "1" }));
+  return rows.length ? rows[0] : null;
+}
+
 // id -> base64 PNG (or null), for the previews the grid asks for as cards scroll into view.
 export async function getPreviews(ids, basePath) {
   if (!ids.length) return new Map();
