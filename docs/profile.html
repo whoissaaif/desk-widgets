@@ -8,12 +8,18 @@
   <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
-  <header class="pf-head" id="head" hidden></header>
+  <header class="pf-head" id="head" aria-hidden="true">
+    <span class="text-skeleton avatar" style="width:112px;height:112px"></span>
+    <span class="text-skeleton" style="width:140px;height:36px;margin-top:20px;border-radius:6px"></span>
+    <span class="text-skeleton" style="width:80px;height:15px;margin-top:10px"></span>
+    <span class="text-skeleton" style="width:280px;height:18px;margin-top:16px"></span>
+  </header>
   <main class="content" id="page">
     <div class="head-row ruled" aria-hidden="true">
-      <span class="text-skeleton heading" style="width:140px"></span>
+      <span class="text-skeleton heading" style="width:100px"></span>
     </div>
-    <div class="explore-grid" style="margin-top: 28px" aria-hidden="true">
+    <div class="explore-grid" style="margin-top:28px" aria-hidden="true">
+      <div class="widget-card placeholder"><div class="art skeleton"></div><div class="widget-card-body"><div class="widget-card-text"><span class="text-skeleton name"></span><span class="text-skeleton by"></span></div></div></div>
       <div class="widget-card placeholder"><div class="art skeleton"></div><div class="widget-card-body"><div class="widget-card-text"><span class="text-skeleton name"></span><span class="text-skeleton by"></span></div></div></div>
       <div class="widget-card placeholder"><div class="art skeleton"></div><div class="widget-card-body"><div class="widget-card-text"><span class="text-skeleton name"></span><span class="text-skeleton by"></span></div></div></div>
       <div class="widget-card placeholder"><div class="art skeleton"></div><div class="widget-card-body"><div class="widget-card-text"><span class="text-skeleton name"></span><span class="text-skeleton by"></span></div></div></div>
@@ -22,7 +28,7 @@
 
   <script type="module">
     import { nav, el, art, avatar, notice, widgetCard, me } from "./assets/site.js";
-    import { available, getProfiles, getWidgets, getPreviews, getMyVersions } from "./assets/data.js";
+    import { available, getProfile, getWidgets, getPreviews, getMyVersions } from "./assets/data.js";
 
     nav(null);
     const page = document.getElementById("page");
@@ -35,6 +41,7 @@
     };
 
     function notFound() {
+      head.hidden = true;
       meta("Not found · Desk Widgets", "No creator by that name.");
       page.replaceChildren(el("div", { class: "pf-missing" },
         el("h1", { class: "t-section" }, "No one's here."),
@@ -44,28 +51,28 @@
 
     async function load() {
       if (!username || !/^[a-z0-9-]{2,24}$/.test(username)) {
+        head.hidden = true;
         page.replaceChildren(notice("This link doesn't point to a profile.", true));
         return;
       }
-      if (!available) { page.replaceChildren(notice("The community gallery isn't connected yet.")); return; }
+      if (!available) { head.hidden = true; page.replaceChildren(notice("The community gallery isn't connected yet.")); return; }
       try {
-        const [profiles, widgets] = await Promise.all([getProfiles(), getWidgets()]);
-        const author = (profiles || []).find((p) => p.username === username);
+        const [author, widgets, who] = await Promise.all([
+          getProfile(username), getWidgets(), me().catch(() => null),
+        ]);
         if (!author) return notFound();
 
-        // Only the signed-in person looking at their own page sees the buttons and the widgets
-        // that are still in review.
-        const who = await me().catch(() => null);
         const owner = Boolean(who && who.profile && who.profile.username === username);
-
         const approved = (widgets || []).filter((w) => w.author === username);
-        // For the owner, the newest version decides the card: one still in review or rejected
-        // shows its pill instead of Get, and a widget with no approved version yet gets a card of
-        // its own. Visitors only ever see the approved list.
+
+        const [versions, previews] = await Promise.all([
+          owner ? getMyVersions().catch(() => []) : Promise.resolve([]),
+          getPreviews(approved.map((w) => w.id), "assets/img/").catch(() => new Map()),
+        ]);
+
         const latest = new Map();
         const pending = [];
         if (owner) {
-          const versions = await getMyVersions().catch(() => []);
           for (const v of versions || []) if (!latest.has(v.widget_id)) latest.set(v.widget_id, v);
           const published = new Set(approved.map((w) => w.id));
           for (const [id, v] of latest) {
@@ -102,7 +109,6 @@
           grid);
 
         if (!shown.length) return;
-        const previews = await getPreviews(approved.map((w) => w.id), "assets/img/").catch(() => new Map());
         grid.replaceChildren(...shown.map((w) => {
           const newest = latest.get(w.id);
           const status = w.status || (newest && newest.status !== "approved" ? newest.status : undefined);

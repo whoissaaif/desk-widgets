@@ -90,7 +90,7 @@ img { display: block; max-width: 100%; }
 .toast.gone { opacity: 0; transform: translateX(-50%) translateY(0); }
 
 /* ---- layout ---- */
-.content { max-width: 1024px; margin: 0 auto; padding: 0 22px; } /* a 980 px column, like the nav (§5.1) */
+.content { width: 100%; max-width: 1024px; margin: 0 auto; padding: 0 22px; } /* a 980 px column, like the nav (§5.1) */
 .section { padding-top: 56px; padding-bottom: 80px; } /* sides come from .content */
 @media (max-width: 734px) { .content { padding-left: 16px; padding-right: 16px; } .section { padding-top: 40px; padding-bottom: 56px; } }
 .narrow { max-width: 688px; } /* sign-in and account pages: one 640 px form column */
