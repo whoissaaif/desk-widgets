@@ -192,6 +192,16 @@ Code must stay C# 5 (the compiler built into Windows): no `$"..."`, `?.`, or `=>
 Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Report security
 problems privately as described in [SECURITY.md](SECURITY.md).
 
+## Star History
+
+<a href="https://www.star-history.com/#whoissaaif/desk-widgets&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=whoissaaif/desk-widgets&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=whoissaaif/desk-widgets&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=whoissaaif/desk-widgets&type=Date" />
+  </picture>
+</a>
+
 ## License
 
 [MIT](LICENSE).
