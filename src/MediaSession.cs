@@ -50,7 +50,7 @@ namespace DeskWidgets
             lock (gate)
             {
                 Detach();
-                session = manager.GetCurrentSession();
+                session = PickSession();
                 if (session != null)
                 {
                     session.MediaPropertiesChanged += onProps;
@@ -59,6 +59,41 @@ namespace DeskWidgets
                 }
             }
             Raise();
+        }
+
+        // Pick the best session: prefer one that is Playing and, among those, the one with
+        // the longest duration (the main video rather than a sidebar preview or ad).
+        GlobalSystemMediaTransportControlsSession PickSession()
+        {
+            var sessions = manager.GetSessions();
+            if (sessions == null || sessions.Count == 0) return manager.GetCurrentSession();
+            GlobalSystemMediaTransportControlsSession best = null;
+            bool bestPlaying = false;
+            double bestDuration = -1;
+            foreach (var s in sessions)
+            {
+                bool playing;
+                double duration;
+                try
+                {
+                    playing = s.GetPlaybackInfo().PlaybackStatus ==
+                        GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+                    var tl = s.GetTimelineProperties();
+                    duration = (tl.EndTime - tl.StartTime).TotalSeconds;
+                }
+                catch (Exception) { continue; }
+
+                bool dominated = bestPlaying && !playing;
+                bool dominates = playing && !bestPlaying;
+                if (dominated) continue;
+                if (dominates || duration > bestDuration)
+                {
+                    best = s;
+                    bestPlaying = playing;
+                    bestDuration = duration;
+                }
+            }
+            return best ?? manager.GetCurrentSession();
         }
 
         void Detach()
