@@ -116,7 +116,7 @@ namespace DeskWidgets
         {
             using (var d = new InputDialog(title, hint, fields, okText, extraText, extra))
             {
-                if (d.ShowDialog() != DialogResult.OK) return null;
+                if (d.ShowDialog(AlertDialog.noOwner) != DialogResult.OK) return null;
                 return d.boxes.ConvertAll(b => b.Text).ToArray();
             }
         }

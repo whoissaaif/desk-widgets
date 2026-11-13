@@ -133,12 +133,17 @@ namespace DeskWidgets
             Theme.ApplyToWindow(Handle);
         }
 
+        // ShowDialog() without an owner uses GetActiveWindow(), which can return a transient
+        // window (e.g. a fading-out popup menu). Win32 destroys owned windows when the owner is
+        // destroyed, so the dialog would be torn down mid-modal-loop. A zero-handle owner avoids this.
+        internal static readonly Win32Owner noOwner = new Win32Owner();
+
         static int Run(string title, string message, IList<KeyValuePair<string, string>> facts, string linkText, Action link,
                        string[] buttons, ButtonStyle[] styles, int defaultIndex, int cancelIndex)
         {
             using (var d = new AlertDialog(title, message, facts, linkText, link, buttons, styles, defaultIndex, cancelIndex))
             {
-                d.ShowDialog();
+                d.ShowDialog(noOwner);
                 return d.result;
             }
         }
@@ -179,6 +184,11 @@ namespace DeskWidgets
             catch (Exception e) { Show("The source of " + name + " couldn't be opened.", e.Message); return; }
             SourceViewer.ShowText(name, text);
         }
+    }
+
+    sealed class Win32Owner : IWin32Window
+    {
+        public IntPtr Handle { get { return IntPtr.Zero; } }
     }
 
     // Read-only code view in the system monospace font.
@@ -232,7 +242,7 @@ namespace DeskWidgets
 
         public static void ShowText(string name, string text)
         {
-            using (var v = new SourceViewer(name, text)) v.ShowDialog();
+            using (var v = new SourceViewer(name, text)) v.ShowDialog(AlertDialog.noOwner);
         }
     }
 }
