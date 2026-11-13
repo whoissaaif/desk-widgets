@@ -254,16 +254,12 @@ namespace DeskWidgets
         void Choose(PopupMenu.Item item)
         {
             if (item.OnClick == null) return;
-            Close(true, item.OnClick);
+            Close(true);
+            Ui.Later(item.OnClick); // after the menu windows are gone
         }
 
         // refocus: give focus back to the window that had it (not when another app was clicked).
         public void Close(bool refocus)
-        {
-            Close(refocus, null);
-        }
-
-        void Close(bool refocus, Action afterClose)
         {
             if (closed) return;
             closed = true;
@@ -272,15 +268,7 @@ namespace DeskWidgets
             hoverTimer.Dispose();
             var all = levels.ToArray();
             levels.Clear();
-            int remaining = all.Length;
-            foreach (var l in all) l.FadeOut(delegate
-            {
-                l.Dispose();
-                // ShowDialog implicitly uses the active window as its owner. If an action runs
-                // during the fade, disposing that menu can also close its new confirmation.
-                // Wait for every level, then leave the animation callback before running it.
-                if (--remaining == 0 && afterClose != null) Ui.Later(afterClose);
-            });
+            foreach (var l in all) l.FadeOut(delegate { l.Dispose(); });
             if (refocus && previous != IntPtr.Zero && Native.IsWindowVisible(previous)) Native.SetForegroundWindow(previous);
             else if (previous != IntPtr.Zero) Native.SendMessage(previous, Native.WM_NCACTIVATE, IntPtr.Zero, IntPtr.Zero);
         }
