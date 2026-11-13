@@ -3,7 +3,7 @@
 ; Output: bin\DeskWidgets-Setup.exe
 
 #define MyAppName "Desk Widgets"
-#define MyAppVersion "1.8.10"
+#define MyAppVersion "1.8.9"
 #define MyAppPublisher "Saiff"
 #define MyAppURL "https://whoissaaif.github.io/desk-widgets/"
 #define MyAppExeName "DeskWidgets.exe"
