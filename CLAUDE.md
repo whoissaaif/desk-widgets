@@ -34,8 +34,9 @@ Every GitHub release carries all four of these, built from the same commit:
 | `DeskWidgets.msix` | `packaging\build-msix.ps1` |
 | Source code (zip) | attached by GitHub automatically |
 
-`DeskWidgets.exe` must keep that exact name: the website's Download button is
-`releases/latest/download/DeskWidgets.exe` (`docs/config.js`), and renaming the asset breaks it.
+`DeskWidgets.exe` and `DeskWidgets-Setup.exe` must keep those exact names: the website's download
+page links `releases/latest/download/<name>` for both (`docs/config.js`), and renaming either
+asset breaks it.
 
 **One version everywhere.** The tag is three parts with a `v` in front, e.g. `v1.8.6`, matching
 every release before it. The MSIX version is that number plus a trailing `.0` (`1.8.6.0`): the

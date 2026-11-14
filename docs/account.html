@@ -6,6 +6,9 @@
   <meta name="robots" content="noindex">
   <title>Your Account · Desk Widgets</title>
   <link rel="stylesheet" href="assets/site.css">
+  <link rel="modulepreload" href="assets/site.js">
+  <link rel="modulepreload" href="config.js">
+  <link rel="modulepreload" href="assets/data.js">
 </head>
 <body>
   <header class="up-head" id="head" hidden>
@@ -20,7 +23,7 @@
   </main>
 
   <script type="module">
-    import { nav, el, notice, supabase, configured, me, toast, avatar, personCard } from "./assets/site.js";
+    import { nav, el, notice, supabase, configured, me, toast, avatar, personCard, photoThumb, rememberMe, isUsername, cleanUsername } from "./assets/site.js";
     import { signInWithPassword } from "./assets/account.js";
     import { usingStub, stubbed, getMyWidgets, usernameTaken } from "./assets/data.js";
 
@@ -88,14 +91,22 @@
     };
 
     async function main() {
-      // A sign-up or password link that expired or was used already comes back with an error.
+      // A sign-up or password link that expired or was opened already comes back with an error.
+      // Opened twice, the first time signed this browser in, so the account just opens. The
+      // address's own description is never shown: anyone can write a link that carries one.
       const hash = new URLSearchParams(location.hash.slice(1));
-      if (hash.get("error_description")) {
-        page.replaceChildren(el("div", { class: "up-form" },
-          el("h1", { class: "t-section" }, "Link expired."),
-          notice(hash.get(“error_description”) + “. Try signing up again, or use “Forgot password” on the sign-in page.”, true),
-          el("div", { class: "actions" }, el("a", { class: "button", href: "login.html" }, "Go to Sign In"))));
-        return;
+      if (hash.has("error") || hash.has("error_description")) {
+        const already = configured && !usingStub ? await me().catch(() => null) : null;
+        if (!already) {
+          history.replaceState(null, "", location.pathname);
+          page.replaceChildren(el("div", { class: "up-form" },
+            el("h1", { class: "t-section" }, "That link has expired."),
+            notice("Links work once and expire after an hour. Send yourself a new one and open the newest email.", true),
+            el("div", { class: "actions" },
+              el("a", { class: "button", href: "login.html#signup" }, "Send a New Link"),
+              el("a", { class: "more", href: "login.html" }, "Sign in instead"))));
+          return;
+        }
       }
       if (!configured && !usingStub) { page.replaceChildren(notice("Accounts aren't connected yet.")); return; }
       const who = usingStub ? await stubSession() : await me();
@@ -106,7 +117,7 @@
 
       if (fresh) return firstTime(who, db);
       head.hidden = false;
-      renderAccount(who, db);
+      return renderAccount(who, db);
     }
 
     async function stubSession() {
@@ -114,13 +125,30 @@
       return getSession();
     }
 
+    // Writes profile fields, with the small copy of a changed photo. A database from before the
+    // avatar_thumb column gets the same fields without it.
+    async function writeProfile(db, id, fields, insert = false) {
+      const send = (row) => insert ? db.from("profiles").insert(Object.assign({ id }, row))
+        : db.from("profiles").update(row).eq("id", id);
+      const res = await send(fields);
+      if (!res.error || !("avatar_thumb" in fields) || !/avatar_thumb/.test(res.error.message)) return res;
+      const { avatar_thumb, ...rest } = fields;
+      return send(rest);
+    }
+
     // ---------------------------------------------------------------- the established account
     async function renderAccount(who, db) {
       const profile = who.profile;
-      let photo = profile.avatar || null;
-      let savedPhoto = photo;
       let username = profile.username;
-      const widgets = await getMyWidgets(who.user.id).catch(() => []);
+      // me() carries only the small copy; the photo itself is read here, where it is edited.
+      // If it can't be read the page stops: saving without it would look like removing it.
+      const [widgets, photoRow] = await Promise.all([
+        getMyWidgets(who.user.id).catch(() => []),
+        db ? db.from("profiles").select("avatar").eq("id", who.user.id).maybeSingle() : { data: profile },
+      ]);
+      if (photoRow.error) throw photoRow.error;
+      let photo = photoRow.data && photoRow.data.avatar || null;
+      let savedPhoto = photo;
       const widgetCount = (widgets || []).length;
 
       // ---- aside: the live person card ----
@@ -179,12 +207,14 @@
           saveProfile.disabled = true;
           saveProfile.replaceChildren(el("span", { class: "spinner" }), " Saving…");
           let error = null;
-          if (usingStub) await stubbed("account", 500);
-          else {
-            const res = await db.from("profiles")
-              .update({ username, bio: bio.value.trim(), avatar: photo }).eq("id", who.user.id);
-            error = res.error;
+          // The photo is megabytes; it is sent only when it changed, with its small copy.
+          const fields = { bio: bio.value.trim() };
+          if (photo !== savedPhoto) {
+            fields.avatar = photo;
+            fields.avatar_thumb = await photoThumb(photo).catch(() => null);
           }
+          if (usingStub) await stubbed("account", 500);
+          else error = (await writeProfile(db, who.user.id, fields)).error;
           saveProfile.replaceChildren("Save Profile");
           if (error) {
             profileError.replaceChildren(notice("Your changes weren't saved: " + error.message, true));
@@ -193,6 +223,12 @@
           }
           savedPhoto = photo;
           profile.bio = bio.value.trim();
+          if ("avatar_thumb" in fields) {
+            profile.avatar_thumb = fields.avatar_thumb;
+            if (!usingStub) rememberMe(who);
+            const navPhoto = document.querySelector(".nav .avatar-button .avatar");
+            if (navPhoto) navPhoto.replaceWith(avatar(profile, 28));
+          }
           touched();
           savedFlag.hidden = false;
           setTimeout(() => { savedFlag.hidden = true; }, 2000);
@@ -232,43 +268,44 @@
         let timer = 0;
 
         async function check() {
-          const value = input.value.trim().toLowerCase();
+          const value = input.value;
           save.disabled = true;
+          clearTimeout(timer);
           if (value === username) { state.textContent = ""; state.className = "hint"; return; }
-          if (!/^[a-z0-9-]{2,24}$/.test(value)) {
+          if (!isUsername(value)) {
             state.textContent = "2–24 lowercase letters, digits or hyphens.";
             state.className = "hint bad";
             return;
           }
           state.textContent = "Checking…";
           state.className = "hint";
-          clearTimeout(timer);
           timer = setTimeout(async () => {
             let taken;
             try { taken = await usernameTaken(value); }
             catch (error) {
-              if (input.value.trim().toLowerCase() !== value) return;
+              if (input.value !== value) return;
               state.textContent = "Couldn't check availability. Try again.";
               state.className = "hint bad";
               return;
             }
-            if (input.value.trim().toLowerCase() !== value) return;
+            if (input.value !== value) return;
             state.textContent = taken ? "Already taken" : "Available";
             state.className = "hint " + (taken ? "bad" : "good");
             save.disabled = taken;
           }, 300);
         }
-        input.addEventListener("input", () => { input.value = input.value.toLowerCase(); check(); });
+        // Only the characters a username can hold ever stay in the field, typed or pasted.
+        input.addEventListener("input", () => { input.value = cleanUsername(input.value); check(); });
 
         save.addEventListener("click", async () => {
-          const value = input.value.trim().toLowerCase();
+          const value = input.value;
+          if (!isUsername(value)) return;
           save.disabled = true;
           save.replaceChildren(el("span", { class: "spinner" }), " Saving…");
           let error = null;
           if (usingStub) await stubbed("account", 500);
           else {
-            const res = await db.from("profiles").update({ username: value, bio: bio.value.trim(), avatar: photo })
-              .eq("id", who.user.id);
+            const res = await db.from("profiles").update({ username: value }).eq("id", who.user.id);
             error = res.error;
           }
           save.replaceChildren("Save Username");
@@ -280,6 +317,7 @@
           }
           username = value;
           profile.username = value;
+          if (!usingStub) rememberMe(who);
           nameText.textContent = value;
           usernameBox.replaceChildren(lockedRow);
           paintCircle();
@@ -379,7 +417,7 @@
       const signedAs = el("span", { class: "hint" }, "Signed in as ", el("strong", {}, username));
       const signOut = el("button", { type: "button", class: "button grey small", onclick: async () => {
           if (usingStub) await stubbed("account", 500);
-          else await (await supabase()).auth.signOut();
+          else { await (await supabase()).auth.signOut(); rememberMe(null); }
           toast("You're signed out.", true);
           location.href = "./";
         } }, "Sign Out");
@@ -428,7 +466,7 @@
       });
       const username = el("input", { class: "input", id: "username", required: true, pattern: "[a-z0-9-]{2,24}",
         maxlength: "24", autocapitalize: "none", spellcheck: "false", autocomplete: "username", placeholder: "moon-maker" });
-      username.addEventListener("input", () => { username.value = username.value.toLowerCase(); paint(); });
+      username.addEventListener("input", () => { username.value = cleanUsername(username.value); paint(); });
       const password = el("input", { class: "input", id: "password", type: "password",
         autocomplete: "new-password", minlength: String(MIN_PASSWORD), required: true });
       const bio = el("textarea", { class: "input bio", id: "bio", rows: "3", maxlength: "160",
@@ -438,10 +476,11 @@
       const form = el("form", { class: "account-section", onsubmit: async (e) => {
           e.preventDefault();
           const fail = (text) => { button.disabled = false; result.replaceChildren(notice(text, true)); };
+          if (!isUsername(username.value)) return fail("Use 2 to 24 lowercase letters, digits or hyphens for your username.");
           if (password.value.length < MIN_PASSWORD) return fail("Use at least " + MIN_PASSWORD + " characters for your password.");
           button.disabled = true;
-          const { error } = await db.from("profiles")
-            .insert({ id: who.user.id, username: username.value, bio: bio.value.trim(), avatar: photo });
+          const { error } = await writeProfile(db, who.user.id, { username: username.value, bio: bio.value.trim(),
+            avatar: photo, avatar_thumb: await photoThumb(photo).catch(() => null) }, true);
           if (error) return fail(/username/.test(error.message)
             ? "The username " + username.value + " is taken. Try another." : "Your account wasn't created: " + error.message);
           const { error: passwordError } = await db.auth.updateUser({ password: password.value });

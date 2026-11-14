@@ -183,6 +183,23 @@ r = await as('anon', `select username, bio from public.authors where username = 
 check('anon reads public profile', ok(r) && r.rows[0] && r.rows[0].bio === 'Makes calendars', JSON.stringify(r.rows || r.error));
 r = await as('anon', `select * from public.authors limit 1`);
 check('authors view has no email', ok(r) && !Object.keys(r.rows[0]).some(k => /mail/.test(k)), JSON.stringify(r.rows || r.error));
+// The small copy of the photo that lists show.
+r = await as('dave', `update public.profiles set avatar = 'BBBB', avatar_thumb = 'CCCC' where id = $1`, [dave]);
+check('owner saves a photo with its small copy', ok(r), r.error);
+r = await as('anon', `select avatar_thumb from public.authors where username = 'dave'`);
+check('anon reads the small copy', ok(r) && r.rows[0].avatar_thumb === 'CCCC', JSON.stringify(r.rows || r.error));
+r = await as('dave', `update public.profiles set avatar_thumb = repeat('A', 60001) where id = $1`, [dave]);
+check('small copy is capped', !ok(r), r.error);
+r = await as('dave', `update public.profiles set avatar_thumb = '<script>' where id = $1`, [dave]);
+check('small copy must be base64', !ok(r), r.error);
+r = await as('dave', `update public.profiles set avatar = repeat('D', 60001) where id = $1 returning avatar_thumb`, [dave]);
+check('a new photo without a new copy drops the old copy', ok(r) && r.rows[0].avatar_thumb === null, JSON.stringify(r.rows || r.error));
+r = await as('dave', `update public.profiles set avatar = 'EEEE' where id = $1 returning avatar_thumb`, [dave]);
+check('a small new photo is its own copy', ok(r) && r.rows[0].avatar_thumb === 'EEEE', JSON.stringify(r.rows || r.error));
+r = await as('dave', `update public.profiles set bio = 'Makes calendars' where id = $1 returning avatar_thumb`, [dave]);
+check('other changes keep the copy', ok(r) && r.rows[0].avatar_thumb === 'EEEE', JSON.stringify(r.rows || r.error));
+r = await as('dave', `update public.profiles set avatar = null where id = $1 returning avatar_thumb`, [dave]);
+check('removing the photo removes the copy', ok(r) && r.rows[0].avatar_thumb === null, JSON.stringify(r.rows || r.error));
 check('dave can upload after setup', ok(await as('dave', `insert into public.widgets (id, owner, slug) values ('u.dave.tick', $1, 'tick')`, [dave])));
 
 // Access requests: anyone may ask; only the owner sees and decides.

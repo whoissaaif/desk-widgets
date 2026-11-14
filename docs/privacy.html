@@ -6,6 +6,9 @@
   <title>Privacy · Desk Widgets</title>
   <meta name="description" content="What Desk Widgets stores on your PC, which services each widget contacts, and what never leaves your machine.">
   <link rel="stylesheet" href="assets/site.css">
+  <link rel="modulepreload" href="assets/site.js">
+  <link rel="modulepreload" href="config.js">
+  <link rel="modulepreload" href="assets/data.js">
 </head>
 <body>
   <main class="content narrow section">
@@ -92,8 +95,9 @@
 
     <p>When you sign in from the app, the access token is stored encrypted on your PC
     (%APPDATA%\DeskWidgets\account.dat). In a browser it is kept in that browser's local storage,
-    along with your light or dark theme preference. The site sets no advertising or tracking
-    cookies.</p>
+    along with your light or dark theme preference and, so the menu doesn't reload on every
+    page, your username and a small copy of your profile photo. Signing out removes them. The
+    site sets no advertising or tracking cookies.</p>
 
     <p>A widget you publish is public: its name, description, source code and author name are
     shown to everyone. Your email address is not.</p>

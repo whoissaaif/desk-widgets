@@ -55,14 +55,20 @@ which is why the website and the app can ship the public anon key.
    `src/Community.cs` (app). Use the **publishable** key (`sb_publishable_...`) or, on older
    projects, the **anon** key (`eyJ...`); both are public by design and both work. Never the
    secret / service_role key.
-8. **Authentication > Emails > Templates:** paste the three templates from `email/`, each with the
+8. **Authentication > Emails > Templates:** paste the four templates from `email/`, each with the
    subject written at its top, so each email says what it's for:
 
    | Template | File | Button opens |
    |---|---|---|
+   | Confirm signup | `email/confirm-signup.html` | `account.html`: choose a username and password |
    | Invite user | `email/invite.html` | `account.html`: choose a username and password |
    | Magic link | `email/sign-in-link.html` | the page the person asked to sign in to |
    | Reset password | `email/change-password.html` | `password.html`: choose a new password |
+
+   Signing up on `login.html` sends the Confirm signup email to a new address (and the Magic link
+   email to one that already has an account). The emails arrive from "Supabase Auth" until you add
+   your own SMTP sender under Authentication > Emails > SMTP Settings; the templates can't change
+   the sender.
 
    "Forgot your password" on `login.html` sends the Reset password email; "Sign in with an email
    link instead" sends the Magic link email. A password link that lands on any other page (the

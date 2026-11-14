@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sign In · Desk Widgets</title>
   <link rel="stylesheet" href="assets/site.css">
+  <link rel="modulepreload" href="assets/site.js">
+  <link rel="modulepreload" href="config.js">
+  <link rel="modulepreload" href="assets/data.js">
 </head>
 <body>
   <main class="auth">
@@ -12,7 +15,7 @@
   </main>
 
   <script type="module">
-    import { nav, el, notice, supabase, configured, me, toast } from "./assets/site.js";
+    import { nav, el, notice, supabase, configured, me, toast, isUsername, cleanUsername, isEmail } from "./assets/site.js";
     import { signInWithPassword } from "./assets/account.js";
     import { usingStub, stubbed } from "./assets/data.js";
 
@@ -68,8 +71,10 @@
       const errorBanner = el("div", { class: "auth-err", role: "alert", hidden: true });
       const username = el("input", { class: "input", id: "username", autocomplete: "username", required: true,
         autocapitalize: "none", spellcheck: "false", maxlength: "24" });
+      // Only the characters a username can hold ever stay in the field, typed or pasted.
+      username.addEventListener("input", () => { username.value = cleanUsername(username.value); });
       const password = el("input", { class: "input pw", id: "password", type: "password",
-        autocomplete: "current-password", required: true });
+        autocomplete: "current-password", required: true, maxlength: "200" });
       const reveal = el("button", { type: "button", class: "pw-toggle", "aria-label": "Show password",
         "aria-pressed": "false", onclick: () => {
           const shown = password.type === "text";
@@ -91,10 +96,12 @@
       const signInForm = el("form", { class: "auth-form", onsubmit: async (e) => {
           e.preventDefault();
           errorBanner.hidden = true;
+          // Nothing but a well-formed username is ever sent; anything else can't be an account.
+          if (!isUsername(username.value)) { showError(); username.focus(); return; }
           signInButton.disabled = true;
           signInButton.replaceChildren(el("span", { class: "spinner" }), " Signing in…");
           username.disabled = password.disabled = reveal.disabled = true;
-          const who = username.value.trim().toLowerCase();
+          const who = username.value;
           const error = usingStub
             ? (await stubbed(), password.value === "wrong" ? "That username and password don't match." : null)
             : await signInWithPassword(who, password.value);
@@ -123,10 +130,17 @@
 
       function emailMethod({ id, buttonText, send, heading, hint, back }) {
         const email = el("input", { class: "input", type: "email", id, autocomplete: "email", required: true,
-          placeholder: "you@example.com", "aria-describedby": id + "-hint" });
+          placeholder: "you@example.com", maxlength: "254", autocapitalize: "none", spellcheck: "false",
+          "aria-describedby": id + "-hint" });
+        const problem = el("span", { class: "hint bad", role: "alert", hidden: true },
+          "That doesn't look like an email address. Check it and try again.");
         const button = el("button", { class: "button auth-submit", type: "submit" }, buttonText);
         const form = el("form", { class: "auth-form", onsubmit: async (e) => {
             e.preventDefault();
+            // One plain address or nothing is sent: no spaces, line breaks or extra recipients.
+            const address = email.value.trim().toLowerCase();
+            problem.hidden = isEmail(address);
+            if (!isEmail(address)) { email.focus(); return; }
             button.disabled = true;
             button.replaceChildren(el("span", { class: "spinner" }), " Sending…");
             email.disabled = true;
@@ -134,7 +148,7 @@
             if (usingStub) await stubbed();
             else {
               const db = await supabase();
-              const { error } = await send(db, email.value.trim());
+              const { error } = await send(db, address);
               rateLimited = Boolean(error && /rate limit|too many/i.test(error.message));
             }
             button.disabled = false;
@@ -147,7 +161,7 @@
             showInbox(() => { panel.replaceChildren(form); email.value = ""; email.focus(); }, back);
           } },
           el("div", { class: "field" }, el("label", { for: id }, "Email"), email,
-            el("span", { class: "hint", id: id + "-hint" }, hint)),
+            el("span", { class: "hint", id: id + "-hint" }, hint), problem),
           button);
         form.focusFirst = () => email.focus();
         if (heading) form.prepend(el("h2", { class: "auth-heading" }, heading));

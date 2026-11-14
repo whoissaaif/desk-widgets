@@ -7,7 +7,7 @@
 //
 // Anywhere else, the rows are always real: the published site has no dev host, so it can never
 // serve sample data, and with no keys it reports "not connected", as before.
-import { supabase, configured, me, restQuery } from "./site.js";
+import { supabase, configured, me, restQuery, isUsername } from "./site.js";
 
 const DEV = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || location.protocol === "file:";
 const LIVE = new URLSearchParams(location.search).has("live");
@@ -53,17 +53,37 @@ export async function getWidgets() {
   return restQuery("explore?" + new URLSearchParams({ select: WIDGET_COLUMNS, order: "reviewed_at.desc" }));
 }
 
-// Everyone who has a published widget: username, bio, avatar.
+// The authors view with the small photo (avatar_thumb), or without any photo on a database
+// from before that column. Never the photo itself: those run to megabytes each.
+async function authors(filter = {}) {
+  const ask = (select) => restQuery("authors?" + new URLSearchParams(Object.assign({ select }, filter)));
+  try { return await ask("username,bio,avatar_thumb"); }
+  catch (e) { return ask("username,bio"); }
+}
+
+// Everyone with a profile: username, bio, avatar_thumb.
 export async function getProfiles() {
   if (usingMocks) return withTimeout(mocks().then((m) => m.profiles.slice()));
-  return restQuery("authors?" + new URLSearchParams({ select: "username,bio,avatar" }));
+  return authors();
 }
 
 // A single author's profile by username, or null.
 export async function getProfile(username) {
+  if (!isUsername(username)) return null;
   if (usingMocks) return withTimeout(mocks().then((m) => (m.profiles || []).find((p) => p.username === username) || null));
-  const rows = await restQuery("authors?" + new URLSearchParams({ select: "username,bio,avatar", username: "eq." + username, limit: "1" }));
+  const rows = await authors({ username: "eq." + username, limit: "1" });
   return rows.length ? rows[0] : null;
+}
+
+// One person's photo itself (base64, possibly a multi-megabyte animation), or null. Asked for
+// on its own and given a minute, after the page that wants it is already showing. onlyIfNoThumb
+// is for lists: it answers null for anyone whose small copy is enough.
+export async function getPhoto(username, onlyIfNoThumb = false) {
+  if (usingMocks || !isUsername(username)) return null;
+  const query = { select: "avatar", username: "eq." + username, avatar: "not.is.null", limit: "1" };
+  if (onlyIfNoThumb) query.avatar_thumb = "is.null";
+  const rows = await restQuery("authors?" + new URLSearchParams(query), 60000);
+  return rows.length ? rows[0].avatar : null;
 }
 
 // id -> base64 PNG (or null), for the previews the grid asks for as cards scroll into view.
@@ -75,6 +95,7 @@ export async function getPreviews(ids, basePath) {
 }
 
 export async function usernameTaken(username) {
+  if (!isUsername(username)) throw new Error("not a username");
   if (usingMocks) return withTimeout(mocks().then((module) =>
     username === "taken" || module.profiles.some((profile) => profile.username === username)));
   const rows = await restQuery("authors?" + new URLSearchParams({ select: "username", username: "eq." + username, limit: "1" }));
