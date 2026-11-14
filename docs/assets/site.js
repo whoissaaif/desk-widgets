@@ -1,9 +1,9 @@
 // Shared helpers for every page. Everything people type or upload reaches the page through
 // textContent (el()), never innerHTML, and ids/previews are re-validated here even though the
 // database already checks them.
-import { SUPABASE_URL, SUPABASE_ANON_KEY, RELEASES_URL, DOWNLOAD_URL, REPO_URL, STORE_URL, ANALYTICS_CODE } from "../config.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, RELEASES_URL, DOWNLOAD_URL, SETUP_URL, REPO_URL, STORE_URL, ANALYTICS_CODE } from "../config.js";
 
-export { RELEASES_URL, DOWNLOAD_URL, REPO_URL, STORE_URL };
+export { RELEASES_URL, DOWNLOAD_URL, SETUP_URL, REPO_URL, STORE_URL };
 
 // The same categories as the app (WidgetRegistry.Categories) and the database check.
 export const CATEGORIES = [
@@ -52,14 +52,24 @@ export const ID_PATTERN = /^u\.[a-z0-9-]+\.[a-z0-9-]+$/;
 export const isValidId = id => typeof id === "string" && id.length <= 64 && ID_PATTERN.test(id);
 const BASE64 = /^[A-Za-z0-9+/=]+$/;
 
+// What people type as a username or an email. The database and the sign-in function hold the
+// same rules and have the final word; these keep anything else from leaving the page at all, so
+// a pasted value can never become part of a query string or a request body it wasn't meant for.
+export const isUsername = name => typeof name === "string" && /^[a-z0-9-]{2,24}$/.test(name);
+// For input events: lower case, and only the characters a username can hold.
+export const cleanUsername = text => String(text).toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 24);
+// One address, no spaces, control characters or angle brackets, 254 characters at most.
+export const isEmail = text => typeof text === "string" && text.length <= 254 &&
+  /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/.test(text);
+
 export const configured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
-export async function restQuery(pathAndQuery) {
+export async function restQuery(pathAndQuery, timeout = 10000) {
   if (!configured) throw new Error("The gallery isn't connected to its database yet.");
   const headers = { apikey: SUPABASE_ANON_KEY };
   if (SUPABASE_ANON_KEY.startsWith("eyJ")) headers.Authorization = "Bearer " + SUPABASE_ANON_KEY;
   const response = await fetch(SUPABASE_URL.replace(/\/$/, "") + "/rest/v1/" + pathAndQuery,
-    { headers, signal: AbortSignal.timeout(10000) });
+    { headers, signal: AbortSignal.timeout(timeout) });
   if (!response.ok) throw new Error(response.status + " " + response.statusText);
   return response.json();
 }
@@ -109,7 +119,7 @@ function routeAuthLink(current) {
 // there is no consent banner to show. Do Not Track is honoured here because its script does not
 // check it. With ANALYTICS_CODE empty, nothing is loaded and nothing is sent.
 export const eventKind = href =>
-  href === DOWNLOAD_URL ? "download"
+  href === DOWNLOAD_URL || href === SETUP_URL ? "download"
   : href === STORE_URL ? "store"
   : href.indexOf("deskwidgets://install/") === 0 ? "get"
   : null;
@@ -146,15 +156,35 @@ export function nav(current, options = {}) {
       link("explore.html", "Explore", "explore"),
       link("upload.html", "Upload", "upload"),
       link("develop.html", "Develop", "develop"),
-      el("a", { class: "link", href: DOWNLOAD_URL }, "Download"),
+      link("download.html", "Download", "download"),
       account, themeToggle())));
   document.body.append(footer());
   showPendingToast();
+  accountMenuEvents(account);
   // The sign-in page asks for the signed-out nav: it is showing a sign-in form, so an avatar
   // there (from a sample session) would contradict the page.
   if (options.signedOut) account.replaceChildren(signInLink(current));
-  else accountNav(account, current).catch(() => account.replaceChildren(signInLink(current)));
+  else {
+    // What the last page learned about the account is painted now, in the same frame as the nav,
+    // so the photo and the owner's Admin link don't appear a moment late on every page. The
+    // session is still checked; the nav is repainted only if the answer differs.
+    const cached = maybeSignedIn() ? cachedMe() : null;
+    if (cached) paintAccount(account, current, cached);
+    accountNav(account, current, cached)
+      .catch(() => { if (!cached) account.replaceChildren(signInLink(current)); });
+  }
   analytics();
+  speculate();
+}
+
+// Starts fetching a page of this site when a link to it is hovered or pressed, so the click
+// finds it already here. Downloads and the app's own links are left alone.
+function speculate() {
+  if (!HTMLScriptElement.supports || !HTMLScriptElement.supports("speculationrules")) return;
+  const rules = el("script", { type: "speculationrules" });
+  rules.textContent = JSON.stringify({ prefetch: [{ eagerness: "moderate",
+    where: { and: [{ href_matches: "/*" }, { not: { href_matches: "*.exe" } }] } }] });
+  document.head.append(rules);
 }
 
 const signInLink = current => el("a", { class: "link", href: "login.html?next=" + encodeURIComponent(location.pathname.split("/").pop() || "./"),
@@ -170,7 +200,7 @@ function footer() {
         "Desk Widgets is free and open source. Community widgets are reviewed by a person before they appear here."),
       el("div", { class: "f-cols" },
         column("Widgets", [["explore.html", "Explore"], ["./#catalog", "Built-in widgets"], ["upload.html", "Upload yours"]]),
-        column("App", [[DOWNLOAD_URL, "Download"], [STORE_URL, "Microsoft Store"],
+        column("App", [["download.html", "Download"], [STORE_URL, "Microsoft Store"],
           [RELEASES_URL, "What's new"], ["privacy.html", "Privacy"]]),
         column("Open source", [[REPO_URL, "Source code"], [REPO_URL + "/issues", "Report an issue"],
           ["develop.html", "Create a widget"]])),
@@ -190,38 +220,121 @@ export function maybeSignedIn() {
 }
 
 // The signed-in person's profile (null when there's none yet) and whether they're the owner.
-export async function me() {
+// Asked once per page, however many callers there are (the nav and the page both ask). The
+// profile carries avatar_thumb, never the photo itself: that can be megabytes, and this runs on
+// every page.
+let meOnce;
+export function me() {
   if (leaving) return new Promise(() => {}); // the page is moving to password.html
+  if (!meOnce) meOnce = loadMe();
+  return meOnce;
+}
+
+async function loadMe() {
   // Imported lazily: data.js imports this module, and only it knows about sample data.
   try {
     const { sampleSession } = await import("./data.js");
     const sample = await sampleSession();
     if (sample) return sample;
   } catch (e) { /* no data layer on this page */ }
-  if (!maybeSignedIn()) return null;
+  if (!maybeSignedIn()) { rememberMe(null); return null; }
   const db = await supabase();
   const { data: { session } } = await db.auth.getSession();
-  if (!session) return null;
-  const [{ data: profile }, { data: admin }] = await Promise.all([
-    db.from("profiles").select("username, bio, avatar").eq("id", session.user.id).maybeSingle(),
-    db.rpc("is_admin"),
-  ]);
-  return { user: session.user, profile, admin: Boolean(admin) };
+  if (!session) { rememberMe(null); return null; }
+  const row = columns => db.from("profiles").select(columns).eq("id", session.user.id).maybeSingle();
+  const profileRow = async () => {
+    const first = await row("username, bio, avatar_thumb");
+    return first.error ? row("username, bio") : first;   // a database from before avatar_thumb
+  };
+  const [{ data: profile, error }, { data: admin }] = await Promise.all([profileRow(), db.rpc("is_admin")]);
+  // Not the same as "no profile yet": that would send a signed-in person to set up again.
+  if (error) throw error;
+  const who = { user: session.user, profile, admin: Boolean(admin) };
+  rememberMe(who);
+  if (profile && "avatar_thumb" in profile && !profile.avatar_thumb) makeThumb(db, who).catch(() => {});
+  return who;
+}
+
+// The little the nav needs, kept between pages. It only decides what is drawn before the session
+// answers: every permission is still the database's (an edited copy shows a link that opens a
+// page with nothing in it).
+const ME_KEY = "dw-me";
+const THUMB = 128;            // px; drawn at 28 to 72, so sharp at 2x for most of them
+const MAX_THUMB_B64 = 60000;  // the profiles.avatar_thumb check
+
+export function rememberMe(who) {
+  if (!who || !who.profile) {
+    try { localStorage.removeItem(ME_KEY); } catch (e) { /* no storage */ }
+    return;
+  }
+  const thumb = who.profile.avatar_thumb;
+  store(ME_KEY, JSON.stringify({ id: who.user.id, username: who.profile.username, admin: who.admin === true,
+    thumb: isPhoto(thumb) && thumb.length <= MAX_THUMB_B64 ? thumb : null }));
+}
+
+function cachedMe() {
+  try {
+    const c = JSON.parse(stored(ME_KEY) || "null");
+    if (!c || typeof c.id !== "string" || !isUsername(c.username)) return null;
+    return { user: { id: c.id }, admin: c.admin === true,
+      profile: { username: c.username, bio: "", avatar_thumb: isPhoto(c.thumb) ? c.thumb : null } };
+  } catch (e) {
+    return null;
+  }
+}
+
+// What the nav shows of an account; two answers with the same key paint the same nav.
+const accountKey = who => [who.profile ? who.profile.username : "", who.profile && who.profile.avatar_thumb || "", who.admin].join("|");
+
+// A photo saved before avatar_thumb existed has no small copy. Its owner's next signed-in visit
+// makes one, once per browser session, after the page is up.
+async function makeThumb(db, who) {
+  const key = "dw-thumb-" + who.user.id;
+  try {
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+  } catch (e) {
+    return;
+  }
+  const { data } = await db.from("profiles").select("avatar").eq("id", who.user.id).maybeSingle();
+  const thumb = data ? await photoThumb(data.avatar) : null;
+  if (!thumb) return;
+  const { error } = await db.from("profiles").update({ avatar_thumb: thumb }).eq("id", who.user.id);
+  if (error) return;
+  who.profile.avatar_thumb = thumb;
+  rememberMe(who);
+}
+
+// The 128 px still copy of a photo that lists and the nav show (base64), or null. An animated
+// photo gives its first frame.
+export async function photoThumb(b64) {
+  if (!isPhoto(b64)) return null;
+  const image = new Image();
+  image.src = "data:" + photoMime(b64) + ";base64," + b64;
+  await image.decode();
+  const side = Math.min(image.naturalWidth, image.naturalHeight);
+  if (!side) return null;
+  const canvas = Object.assign(document.createElement("canvas"), { width: THUMB, height: THUMB });
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(image, (image.naturalWidth - side) / 2, (image.naturalHeight - side) / 2, side, side, 0, 0, THUMB, THUMB);
+  const webp = canvas.toDataURL("image/webp", 0.85);
+  const url = webp.startsWith("data:image/webp") ? webp : canvas.toDataURL("image/jpeg", 0.85);
+  const out = url.split(",")[1] || "";
+  return out && out.length <= MAX_THUMB_B64 ? out : null;
 }
 
 // Sign-in and sign-up links come back to whichever page Supabase was told (or the site root), with
 // the result in the address (#access_token=... or #error=...). Every page finishes that here; the
 // account page shows its own message.
-async function accountNav(host, current) {
+async function accountNav(host, current, cached) {
   const hash = new URLSearchParams(location.hash.slice(1));
   if ((hash.has("error") || hash.has("error_description")) && current !== "account") {
     history.replaceState(null, "", location.pathname + location.search); // no error text left in the address bar
-    const why = (hash.get("error_description") || hash.get("error") || "").replace(/\+/g, " ");
+    // The address's own description is never shown: anyone can write a link that carries one.
     const main = document.querySelector("main");
-    if (main) main.prepend(notice("That link didn't work" + (why ? " (" + why + ")" : "") +
-      ". Links expire after a day and work once. Try signing up again, or use “Forgot your password” on the sign-in page.", true));
-    host.replaceChildren(signInLink(current));
-    return;
+    if (main) main.prepend(notice("That link didn't work. Links expire after an hour and work once. " +
+      "Try signing up again, or use “Forgot password” on the sign-in page.", true));
   }
   const arriving = hash.has("access_token");
   const who = await me();
@@ -231,8 +344,11 @@ async function accountNav(host, current) {
     if (!who.profile) { location.replace("account.html"); return; } // finish setting up first
     toast("You're signed in as " + who.profile.username + ".");
   }
+  if (!cached || accountKey(cached) !== accountKey(who)) paintAccount(host, current, who);
+}
+
+function paintAccount(host, current, who) {
   const name = who.profile ? who.profile.username : who.user.email;
-  const close = () => { menu.classList.remove("open"); button.setAttribute("aria-expanded", "false"); };
   const item = (href, text) => el("a", { role: "menuitem", href }, text);
   const menu = el("div", { class: "menu", role: "menu" },
     el("div", { class: "who" }, avatar(who.profile, 40),
@@ -244,6 +360,7 @@ async function accountNav(host, current) {
     el("hr"),
     el("button", { type: "button", role: "menuitem", onclick: async () => {
       await (await supabase()).auth.signOut();
+      rememberMe(null);
       toast("You're signed out.", true);
       location.href = "./";
     } }, "Sign Out"));
@@ -256,19 +373,42 @@ async function accountNav(host, current) {
       if (open) menu.querySelector("[role=menuitem]").focus();
     } }, avatar(who.profile, 28));
   if (current === "account") button.setAttribute("aria-current", "page");
-  document.addEventListener("click", e => { if (!menu.contains(e.target)) close(); });
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && menu.classList.contains("open")) { close(); button.focus(); } });
   host.replaceChildren(
     ...[who.admin && el("a", { class: "link", href: "admin.html", "aria-current": current === "admin" ? "page" : null }, "Admin"),
     button, menu].filter(Boolean));
 }
 
-// A round profile photo, or the first letter of the name on grey.
+// Closing the account menu: a click outside it, or Escape. Registered once per page; the nav can
+// be painted twice (from the cached account, then from the session).
+function accountMenuEvents(host) {
+  const close = () => {
+    const menu = host.querySelector(".menu.open");
+    if (!menu) return null;
+    menu.classList.remove("open");
+    const button = host.querySelector(".avatar-button");
+    if (button) button.setAttribute("aria-expanded", "false");
+    return button;
+  };
+  document.addEventListener("click", e => {
+    const menu = host.querySelector(".menu");
+    if (menu && !menu.contains(e.target)) close();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    const button = close();
+    if (button) button.focus();
+  });
+}
+
+// A round profile photo, or the first letter of the name on grey. Up to 96 px the small copy
+// (avatar_thumb) is the one drawn; the photo itself is for the profile page and the editor.
 export function avatar(profile, size) {
   const style = "width:" + size + "px;height:" + size + "px";
-  if (profile && isPhoto(profile.avatar)) {
-    const mime = photoMime(profile.avatar);
-    return el("img", { class: "avatar", style, src: "data:" + mime + ";base64," + profile.avatar, alt: "" });
+  const small = profile && isPhoto(profile.avatar_thumb) ? profile.avatar_thumb : null;
+  const full = profile && isPhoto(profile.avatar) ? profile.avatar : null;
+  const photo = size <= 96 ? small || full : full || small;
+  if (photo) {
+    return el("img", { class: "avatar", style, src: "data:" + photoMime(photo) + ";base64," + photo, alt: "" });
   }
   const letter = profile && profile.username ? profile.username[0].toUpperCase() : "";
   return el("span", { class: "avatar", style: style + ";font-size:" + Math.round(size * 0.45) + "px", "aria-hidden": "true" }, letter);
@@ -400,7 +540,7 @@ export function getButton(id, version, label = "Get", cls = "get") {
       count("no-app");
       confirmDialog("Desk Widgets isn’t installed",
         "Get opens the app on your PC. Download it, then click Get again to install this widget.",
-        "Download", () => { location.href = DOWNLOAD_URL; }, false);
+        "Download", () => { location.href = "download.html"; }, false);
     }, 1500);
   };
   return el("a", { class: cls, href: installUrl(id, version), "aria-label": label + " (opens Desk Widgets)", onclick: check }, label);

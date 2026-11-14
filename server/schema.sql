@@ -32,6 +32,31 @@ alter table public.profiles drop constraint if exists profiles_avatar_check;
 alter table public.profiles add constraint profiles_avatar_check
   check (avatar is null or (length(avatar) <= 6700000 and avatar ~ '^[A-Za-z0-9+/=]+$'));
 
+-- A small still copy of the photo (128 px, a few KB) for lists and the nav. The photo itself can
+-- be a 5 MB animation: eight of those in one People response was 14 MB and timed the page out.
+-- The website makes the copy when a photo is saved (docs/account.html) and, for photos saved
+-- before this column existed, the next time their owner visits signed in (docs/assets/site.js).
+alter table public.profiles add column if not exists avatar_thumb text;
+alter table public.profiles drop constraint if exists profiles_avatar_thumb_check;
+alter table public.profiles add constraint profiles_avatar_thumb_check
+  check (avatar_thumb is null or (length(avatar_thumb) <= 60000 and avatar_thumb ~ '^[A-Za-z0-9+/=]+$'));
+-- A photo that is already small is its own copy.
+update public.profiles set avatar_thumb = avatar
+ where avatar_thumb is null and avatar is not null and length(avatar) <= 60000;
+
+-- A new photo saved without a new copy (an older page, or the app) must not keep the old face.
+create or replace function public.profiles_thumb_follows_photo() returns trigger
+language plpgsql as $$
+begin
+  if new.avatar is distinct from old.avatar and new.avatar_thumb is not distinct from old.avatar_thumb then
+    new.avatar_thumb := case when new.avatar is not null and length(new.avatar) <= 60000 then new.avatar end;
+  end if;
+  return new;
+end $$;
+drop trigger if exists profiles_thumb_follows_photo on public.profiles;
+create trigger profiles_thumb_follows_photo before update on public.profiles
+  for each row execute function public.profiles_thumb_follows_photo();
+
 -- People asking to upload. Written only through request_access(); read and decided by the owner.
 create table if not exists public.access_requests (
   id         bigint generated always as identity primary key,
@@ -234,8 +259,8 @@ revoke all on public.profiles, public.admins, public.widgets, public.versions, p
 grant select on public.widgets, public.versions to anon, authenticated;
 grant select on public.profiles, public.admins, public.access_requests to authenticated;
 grant select on public.profiles, public.admins, public.access_requests to service_role;
-grant insert (id, username, bio, avatar) on public.profiles to authenticated;
-grant update (username, bio, avatar) on public.profiles to authenticated;
+grant insert (id, username, bio, avatar, avatar_thumb) on public.profiles to authenticated;
+grant update (username, bio, avatar, avatar_thumb) on public.profiles to authenticated;
 grant insert (id, owner, slug) on public.widgets to authenticated;
 grant insert (widget_id, name, category, description, api_version, source, preview) on public.versions to authenticated;
 revoke all on public.likes from anon, authenticated;
@@ -246,9 +271,10 @@ grant delete on public.likes to authenticated;
 -- ---------------------------------------------------------------- public views (no account needed)
 -- Views run with their owner's rights (they bypass RLS), so each one filters to public data itself.
 
--- Authors' public profile: name, bio and photo. Never their email.
+-- Authors' public profile: name, bio and photo. Never their email. Lists ask for avatar_thumb;
+-- only a profile page asks for the full avatar. New columns go last (create or replace).
 create or replace view public.authors as
-  select id, username, bio, avatar from public.profiles;
+  select id, username, bio, avatar, avatar_thumb from public.profiles;
 
 -- The newest approved version of every widget, without its source: the Explore list.
 -- installs and likes ride along so Explore can sort without a second round trip. Counting the

@@ -6,6 +6,8 @@ export const SUPABASE_ANON_KEY = "sb_publishable_7-z7D1GwtQJumqAPFxlJlA_d3myO4gk
 export const RELEASES_URL = "https://github.com/whoissaaif/desk-widgets/releases/latest";
 // Starts the download of the newest release's exe; every release must attach a file with this name.
 export const DOWNLOAD_URL = RELEASES_URL + "/download/DeskWidgets.exe";
+// The installer from the same release (packaging/installer.iss); download.html offers it first.
+export const SETUP_URL = RELEASES_URL + "/download/DeskWidgets-Setup.exe";
 export const REPO_URL = "https://github.com/whoissaaif/desk-widgets";
 // The Store listing: product id 9PML42WDP84Z, published as "DeskWidgets" by Saiff. A different
 // app holds the name "Desk Widgets" with the space, which is why that one was unavailable to

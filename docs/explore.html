@@ -6,6 +6,9 @@
   <title>Explore · Desk Widgets</title>
   <meta name="description" content="Free, lightweight desktop widgets for Windows, and widgets made by the community.">
   <link rel="stylesheet" href="assets/site.css">
+  <link rel="modulepreload" href="assets/site.js">
+  <link rel="modulepreload" href="config.js">
+  <link rel="modulepreload" href="assets/data.js">
   <link rel="preconnect" href="https://vtgsbgkjleyqlxgjdvqy.supabase.co">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm">
@@ -57,7 +60,7 @@
 
   <script type="module">
     import { nav, el, art, avatar, getButton, categoryName, categoryIcon, isValidId, notice, DOWNLOAD_URL, widgetCard as card, personCard } from "./assets/site.js";
-    import { getWidgets, getProfiles, getPreviews, available } from "./assets/data.js";
+    import { getWidgets, getProfiles, getPreviews, getPhoto, available } from "./assets/data.js";
 
     nav("explore");
 
@@ -187,6 +190,25 @@
       }
     }
 
+    // Someone whose photo has no small copy yet (it is made on their next visit) starts as their
+    // initial. The photo is fetched once their card is on screen, one person at a time since it
+    // can be megabytes, and failing just leaves the initial.
+    let photoQueue = Promise.resolve();
+    const photoObserver = new IntersectionObserver((entries, obs) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const card = entry.target, person = card.person;
+        obs.unobserve(card);
+        if (person.photoAsked) continue;
+        person.photoAsked = true;
+        photoQueue = photoQueue.then(() => getPhoto(person.username, true)).then((photo) => {
+          if (!photo) return;
+          person.avatar = photo;
+          if (peopleMode) renderPeople();
+        }).catch(() => {});
+      }
+    });
+
     // The card itself lives in site.js (the upload page shows the same component); this only
     // supplies the skeleton art element that previews are lazy-loaded into.
     function widgetCard(w) {
@@ -214,7 +236,9 @@
       const widgetCount = username => widgets.filter(w => w.author === username).length;
       peopleGrid.replaceChildren(...shown.map(a => {
         const count = widgetCount(a.username);
-        return personCard(a, count);
+        const person = personCard(a, count);
+        if (!a.avatar_thumb && !a.avatar) photoObserver.observe(Object.assign(person, { person: a }));
+        return person;
       }));
       if (authors.length && !shown.length)
         peopleGrid.replaceChildren(el("p", { class: "empty" }, "No people match."));

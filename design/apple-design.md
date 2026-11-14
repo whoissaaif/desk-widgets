@@ -830,6 +830,14 @@ filter, tiles at r18 with a Tinted **Get**, an App Store-style widget page (info
 Category, Reviewed, Size, Needs) and grouped lists for uploads. Everything people upload reaches
 the page as text, never as HTML.
 
+`docs/download.html` is where every Download link goes: two tiles at r18 side by side (stacked
+under 735 px), the installer first with the one Filled button, the Microsoft Store second with an
+Outlined one, each with a line icon, a title, one sentence and a caption. The single .exe is a
+text link under the tiles, not a third tile.
+
+Pages cross-fade into each other (160 ms, off under reduced motion), and the nav paints the
+signed-in account from what the last page knew, so nothing in it appears late.
+
 ### 17.12 Writing
 Buttons and menu items use title style ("Add to Desktop", "Show Source", "Remove Widget");
 descriptions and messages are plain sentences. Errors say what happened and what to do.

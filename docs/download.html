@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Download · Desk Widgets</title>
+  <meta name="description" content="Download Desk Widgets for Windows 10 and 11: the installer, the Microsoft Store, or a single file that runs from any folder.">
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="modulepreload" href="assets/site.js">
+  <link rel="modulepreload" href="config.js">
+  <link rel="modulepreload" href="assets/data.js">
+</head>
+<body>
+  <main class="content dl-page">
+    <h1 class="t-section">Download Desk Widgets.</h1>
+    <p class="t-intro">Free and open source, for Windows 10 and 11. Pick how you want it.</p>
+
+    <div class="dl-grid">
+      <section class="dl-card" aria-labelledby="dl-setup">
+        <svg class="dl-ico" width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 11l4.5 4.5L16.5 11M5 20h14"/></svg>
+        <h2 class="t-card" id="dl-setup">Installer</h2>
+        <p>Sets up Desk Widgets with a Start menu entry and an uninstaller. No administrator rights needed.</p>
+        <a class="button" id="setup" href="#">Download Installer</a>
+        <!-- The script fills in the version and size from the release itself, so they can't go stale. -->
+        <p class="dl-meta" id="setup-meta">DeskWidgets-Setup.exe</p>
+      </section>
+
+      <section class="dl-card" aria-labelledby="dl-store">
+        <svg class="dl-ico" width="40" height="40" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>
+        <h2 class="t-card" id="dl-store">Microsoft Store</h2>
+        <p>Installs through the Store, which keeps it up to date for you.</p>
+        <a class="button secondary" id="store" href="#">Get It from Microsoft Store</a>
+        <p class="dl-meta">Opens the Store listing for DeskWidgets.</p>
+      </section>
+    </div>
+
+    <p class="dl-other">Don&rsquo;t want to install anything? <a id="portable" href="#">Download the single .exe</a>
+      and run it from any folder.</p>
+    <p class="dl-other"><a class="more" id="notes" href="#">What&rsquo;s new in this version</a></p>
+  </main>
+
+  <script type="module">
+    import { nav, DOWNLOAD_URL, SETUP_URL, STORE_URL, RELEASES_URL, REPO_URL } from "./assets/site.js";
+    nav("download");
+    document.getElementById("setup").href = SETUP_URL;
+    document.getElementById("store").href = STORE_URL;
+    document.getElementById("portable").href = DOWNLOAD_URL;
+    document.getElementById("notes").href = RELEASES_URL;
+
+    // The release's own tag and installer size, from the API the app's updater already uses
+    // (src/AppUpdater.cs). If it can't be read, the line keeps the file name alone.
+    fetch("https://api.github.com/repos/" + REPO_URL.split("github.com/")[1] + "/releases/latest")
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(r.status)))
+      .then(release => {
+        const setup = (release.assets || []).find(a => a.name === "DeskWidgets-Setup.exe");
+        const parts = ["DeskWidgets-Setup.exe"];
+        if (release.tag_name) parts.push("Version " + String(release.tag_name).replace(/^v/, ""));
+        if (setup && setup.size) parts.push((setup.size / 1048576).toFixed(1) + " MB");
+        document.getElementById("setup-meta").textContent = parts.join(" · ");
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>

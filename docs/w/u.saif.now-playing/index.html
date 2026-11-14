@@ -14,6 +14,9 @@
   <meta property="og:url" content="https://whoissaaif.github.io/desk-widgets/w/u.saif.now-playing/">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="assets/site.css">
+  <link rel="modulepreload" href="assets/site.js">
+  <link rel="modulepreload" href="config.js">
+  <link rel="modulepreload" href="assets/data.js">
 </head>
 <body>
   <main class="content section" id="page"></main>
@@ -38,7 +41,7 @@
         if (!versions || !versions.length) { page.replaceChildren(notice("This widget isn't available.", true)); return; }
         const { data: listed } = await db.from("explore").select("author").eq("id", id).maybeSingle();
         const { data: author } = listed
-          ? await db.from("authors").select("username, bio, avatar").eq("username", listed.author).maybeSingle() : { data: null };
+          ? await db.from("authors").select("username, bio, avatar_thumb").eq("username", listed.author).maybeSingle() : { data: null };
         show(versions, author || { username: listed ? listed.author : "", bio: "" });
       } catch (e) {
         page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true));

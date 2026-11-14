@@ -6,6 +6,9 @@
   <title>Profile · Desk Widgets</title>
   <meta name="description" id="meta-description" content="">
   <link rel="stylesheet" href="assets/site.css">
+  <link rel="modulepreload" href="assets/site.js">
+  <link rel="modulepreload" href="config.js">
+  <link rel="modulepreload" href="assets/data.js">
 </head>
 <body>
   <header class="pf-head" id="head" aria-hidden="true">
@@ -28,7 +31,7 @@
 
   <script type="module">
     import { nav, el, art, avatar, notice, widgetCard, me } from "./assets/site.js";
-    import { available, getProfile, getWidgets, getPreviews, getMyVersions } from "./assets/data.js";
+    import { available, getProfile, getWidgets, getPreviews, getMyVersions, getPhoto } from "./assets/data.js";
 
     nav(null);
     const page = document.getElementById("page");
@@ -95,6 +98,14 @@
             el("a", { class: "more", href: "upload.html" }, "Upload a widget")) : null);
         const img = head.querySelector("img.avatar");
         if (img) img.alt = author.username;
+        // The photo itself (sharper at this size, and it may be animated) arrives on its own
+        // and replaces the small copy; the page never waits for it.
+        getPhoto(username).then((photo) => {
+          if (!photo) return;
+          const full = avatar({ username, avatar: photo }, 112);
+          full.alt = author.username;
+          head.querySelector(".avatar").replaceWith(full);
+        }).catch(() => {});
 
         const shown = [...approved, ...pending];
         const grid = shown.length

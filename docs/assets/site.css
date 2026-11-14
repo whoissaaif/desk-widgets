@@ -489,6 +489,26 @@ textarea.input.bio { min-height: 0; padding: 12px 14px; border-radius: 12px;
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; animation: none !important; } }
 
+/* Moving between pages cross-fades instead of blanking (browsers that can; the rest load as
+   before). The nav keeps its place through the fade. Off under reduced motion. */
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 160ms; }
+.nav { view-transition-name: site-nav; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+
+/* ---- download page (§17.11): two tiles, the installer first ---- */
+.dl-page { padding-top: 72px; padding-bottom: 120px; }
+.dl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 40px; }
+.dl-card { display: flex; flex-direction: column; align-items: flex-start; background: var(--card);
+  border-radius: var(--r-card); padding: 32px; }
+.dl-ico { fill: none; stroke: var(--text); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; margin-bottom: 20px; }
+.dl-card p { font: 400 17px/25px var(--font-text); letter-spacing: -0.022em; color: var(--text-2); margin: 8px 0 0; flex: 1 0 auto; }
+.dl-card .button { margin-top: 24px; }
+.dl-card p.dl-meta { font: 400 12px/16px var(--font-text); letter-spacing: -0.01em; margin: 12px 0 0; flex: none; }
+.dl-other { font: 400 14px/20px var(--font-text); letter-spacing: -0.016em; color: var(--text-2); margin: 24px 0 0; }
+.dl-other + .dl-other { margin-top: 8px; }
+@media (max-width: 734px) { .dl-page { padding-top: 48px; padding-bottom: 80px; } .dl-grid { grid-template-columns: 1fr; } .dl-card { padding: 24px; } }
+
 /* ---- landing page: full-bleed tiles with 12 px gutters, alternating light and dark (§2.1) ---- */
 .landing .footer { margin-top: 0; }
 .tile { padding: 56px 22px 64px; margin-bottom: 12px; text-align: center; overflow: hidden; }

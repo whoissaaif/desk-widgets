@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="../../">
+  <title>Nothing Quick Toggles · Desk Widgets</title>
+  <meta name="description" content="Wi-Fi, Bluetooth and Do not disturb as three pills">
+  <link rel="canonical" href="https://whoissaaif.github.io/desk-widgets/w/u.saif.nothingtoggles/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Nothing Quick Toggles">
+  <meta property="og:description" content="Wi-Fi, Bluetooth and Do not disturb as three pills">
+  <meta property="og:image" content="https://whoissaaif.github.io/desk-widgets/w/u.saif.nothingtoggles/preview.png">
+  <meta property="og:url" content="https://whoissaaif.github.io/desk-widgets/w/u.saif.nothingtoggles/">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="modulepreload" href="assets/site.js">
+  <link rel="modulepreload" href="config.js">
+  <link rel="modulepreload" href="assets/data.js">
+</head>
+<body>
+  <main class="content section" id="page"></main>
+
+  <script type="module">
+    import { nav, el, art, getButton, supabase, configured, categoryName, isValidId, notice, formatDate, visibleSource, avatar } from "./assets/site.js";
+
+    nav(null);
+    const page = document.getElementById("page");
+    const id = "u.saif.nothingtoggles";
+
+    async function load() {
+      if (!isValidId(id)) { page.replaceChildren(notice("This link doesn't point to a widget.", true)); return; }
+      if (!configured) { page.replaceChildren(notice("The community gallery isn't connected yet.")); return; }
+      try {
+        const db = await supabase();
+        // Only approved versions are readable without an account (RLS), newest first.
+        const { data: versions, error } = await db.from("versions")
+          .select("version, name, category, description, api_version, source, preview, sha256, reviewed_at")
+          .eq("widget_id", id).eq("status", "approved").order("version", { ascending: false });
+        if (error) throw error;
+        if (!versions || !versions.length) { page.replaceChildren(notice("This widget isn't available.", true)); return; }
+        const { data: listed } = await db.from("explore").select("author").eq("id", id).maybeSingle();
+        const { data: author } = listed
+          ? await db.from("authors").select("username, bio, avatar_thumb").eq("username", listed.author).maybeSingle() : { data: null };
+        show(versions, author || { username: listed ? listed.author : "", bio: "" });
+      } catch (e) {
+        page.replaceChildren(notice("This page couldn't load. Check your connection and reload.", true));
+      }
+    }
+
+    function show(versions, author) {
+      const w = versions[0];
+      document.title = w.name + " · Desk Widgets";
+      const kb = Math.max(1, Math.round(new TextEncoder().encode(w.source).length / 1024));
+      const fact = (label, value, unit) => el("div", {}, el("div", { class: "label" }, label), el("div", { class: "value" }, value), el("div", { class: "unit" }, unit));
+
+      page.replaceChildren(
+        el("div", { class: "product" },
+          art(w.preview, w.name),
+          el("div", {},
+            el("h1", { class: "t-large" }, w.name),
+            el("p", { class: "subtitle" }, w.description || categoryName(w.category)),
+            el("div", { class: "byline" }, avatar(author, 32),
+              el("div", {}, el("a", { class: "t-reduced", href: "profile.html?user=" + encodeURIComponent(author.username), style: "color: inherit" }, "By " + author.username),
+                author.bio ? el("div", { class: "t-caption" }, author.bio) : null)),
+            el("div", { class: "actions" },
+              getButton(id, w.version, "Get", "button"),
+              el("a", { class: "more", href: location.pathname + "#source" }, "View source")),
+            el("p", { class: "t-caption" }, "Get opens Desk Widgets. It checks this exact code and asks before installing."))),
+        el("div", { class: "info", role: "list" },
+          fact("Version", String(w.version), "latest"),
+          fact("Category", categoryName(w.category), ""),
+          fact("Reviewed", formatDate(w.reviewed_at), "by the owner"),
+          fact("Size", kb + " KB", "C# source"),
+          fact("Needs", "API " + w.api_version, "Desk Widgets")),
+        el("h2", { class: "block", id: "source" }, "Source"),
+        el("p", { class: "t-reduced" }, "This is the code that runs on your PC. SHA-256 " + w.sha256),
+        el("pre", { class: "code" }, visibleSource(w.source)),
+        el("h2", { class: "block" }, "Version history"),
+        el("div", { class: "group" }, versions.map(v =>
+          el("div", { class: "row" },
+            el("div", { class: "main" }, el("div", { class: "t-headline" }, "Version " + v.version),
+              el("div", { class: "t-reduced" }, "Reviewed " + formatDate(v.reviewed_at))),
+            getButton(id, v.version, v === w ? "Get" : "Get v" + v.version)))));
+    }
+    load();
+  </script>
+</body>
+</html>
