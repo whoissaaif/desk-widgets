@@ -1,0 +1,7 @@
+{
+  "name": "Water Timer",
+  "category": "productivity",
+  "description": "A small black macOS-style countdown whose water drains, wave by wave, as time runs out.",
+  "api_version": 1,
+  "version": 1
+}
